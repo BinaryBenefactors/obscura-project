@@ -78,10 +78,10 @@
 
 Пожалуйста, следуйте [стилю кодирования](docs/CONTRIBUTING.md) и убедитесь, что ваш код соответствует стандартам проекта.
 
-<div style="text-align: center;">
+<div align="center">
     <h2> Список контрибьюторов </h2>
 </div>
-<div style="text-align: center;">
+<div align="center">
     <a href="https://github.com/bambutcha/Obscura/graphs/contributors">
         <img src="https://contrib.rocks/image?repo=bambutcha/Obscura" />
     </a>

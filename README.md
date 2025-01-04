@@ -82,8 +82,8 @@
     <h2> Список контрибьюторов </h2>
 </div>
 <div align="center">
-    <a href="https://github.com/bambutcha/Obscura/graphs/contributors">
-        <img src="https://contrib.rocks/image?repo=bambutcha/Obscura" />
+    <a href="https://github.com/binarybenefactors/obscura-project/graphs/contributors">
+      <img src="https://contrib.rocks/image?repo=binarybenefactors/obscura-project" />
     </a>
 </div>
 

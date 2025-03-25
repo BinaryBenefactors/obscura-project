@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-    logger, err := logger.NewLogger("app.log")
+    logger, err := logger.NewLogger("cmd/app.log")
     if err != nil {
         log.Fatalf("Could not initialize logger: %v", err)
     }

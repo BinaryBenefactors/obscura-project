@@ -82,30 +82,45 @@ func (l *Logger) log(level LogLevel, msg string) {
 	l.fileLogger.Println(levelStr + msg)
 }
 
-func (l *Logger) Debug(msg string) {
-	l.log(DEBUG, msg)
-}
-
-func (l *Logger) Info(msg string) {
-	l.log(INFO, msg)
-}
-
-func (l *Logger) Warning(msg string) {
-	l.log(WARNING, msg)
-}
-
-func (l *Logger) Error(msg string, errs ...error) {
+func (l *Logger) Debug(msg string, v ...interface{}) {
 	fullMsg := msg
-	if len(errs) > 0 {
-		fullMsg = fmt.Sprintf("%s: %v", msg, errs[0])
+	if len(v) > 0 {
+		fullMsg = fmt.Sprintf(msg, v...)
+	}
+
+	l.log(DEBUG, fullMsg)
+}
+
+func (l *Logger) Info(msg string, v ...interface{}) {
+	fullMsg := msg
+	if len(v) > 0 {
+		fullMsg = fmt.Sprintf(msg, v...)
+	}
+
+	l.log(INFO, fullMsg)
+}
+
+func (l *Logger) Warning(msg string, v ...interface{}) {
+	fullMsg := msg
+	if len(v) > 0 {
+		fullMsg = fmt.Sprintf(msg, v...)
+	}
+
+	l.log(WARNING, fullMsg)
+}
+
+func (l *Logger) Error(msg string, v ...interface{}) {
+	fullMsg := msg
+	if len(v) > 0 {
+		fullMsg = fmt.Sprintf(msg, v...)
 	}
 	l.log(ERROR, fullMsg)
 }
 
-func (l *Logger) Fatal(msg string, errs ...error) {
+func (l *Logger) Fatal(msg string, v ...interface{}) {
 	fullMsg := msg
-	if len(errs) > 0 {
-		fullMsg = fmt.Sprintf("%s: %v", msg, errs[0])
+	if len(v) > 0 {
+		fullMsg = fmt.Sprintf(msg, v...)
 	}
 
 	l.log(FATAL, fullMsg)

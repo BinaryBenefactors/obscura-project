@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"obscura.app/backend/internal/logger"
+	"obscura.app/backend/pkg/logger"
 )
 
 const (
@@ -36,15 +36,15 @@ func main() {
     }
     defer logger.Close()
 
-    logger.Info("This is an info message")
-    logger.Debug("This is a debug message")
-    logger.Warning("This is a warning message")
-    logger.Error("This is an error message")
-    logger.Fatal("This is a fatal message")
+    // logger.Info("This is an info message")
+    // logger.Debug("This is a debug message")
+    // logger.Warning("This is a warning message")
+    // logger.Error("This is an error message")
+    // logger.Fatal("This is a fatal message")
 
 	// Создаем папку для загрузок
 	if err := setupUploadDir(); err != nil {
-		log.Fatalf("Failed to setup upload directory: %v", err)
+		logger.Fatal("Failed to setup upload directory: %v", err)
 	}
 
 	// Настраиваем маршруты
@@ -55,8 +55,8 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir("../../../frontend/static")))
 
 	port := "8080"
-	log.Printf("Server started on http://localhost:%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	logger.Info("Server started on http://localhost:%s", port)
+	logger.Fatal("Server failed to start: %v", http.ListenAndServe(":"+port, nil))
 }
 
 func setupUploadDir() error {

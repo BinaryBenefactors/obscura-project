@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"obscura.app/backend/pkg/logger"
@@ -20,9 +23,19 @@ type Config struct {
 	Port          string
 }
 
+type UploadedFile struct {
+    ID         string    `json:"id"`
+    Original   string    `json:"original_name"`
+    Processed  string    `json:"processed_path"`  // Путь к обработанному файлу от ML
+    UploadedAt time.Time `json:"uploaded_at"`
+    Status     string    `json:"status"`          // "processing", "completed", "failed"
+}
+
 type Application struct {
-	config *Config
-	logger *logger.Logger
+    config  *Config
+    logger  *logger.Logger
+    uploads map[string][]UploadedFile  // Пока храним в памяти. Позже заменим на БД
+    mu      sync.RWMutex               // Для безопасного доступа к map из горутин
 }
 
 type ErrorResponse struct {
@@ -36,32 +49,110 @@ type SuccessResponse struct {
 	Message  string `json:"message"`
 }
 
+type contextKey string
+
+const (
+    userIDKey contextKey = "userID"
+)
+
 // Инициализация (теперь все зависимости создаются внутри)
 func NewApplication(cfg *Config) (*Application, error) {
-	l, err := logger.NewLogger(cfg.LogFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("logger init failed: %w", err)
-	}
+    l, err := logger.NewLogger(cfg.LogFilePath)
+    if err != nil {
+        return nil, fmt.Errorf("logger init failed: %w", err)
+    }
 
-	return &Application{
-		config: cfg,
-		logger: l,
-	}, nil
+    return &Application{
+        config:  cfg,
+        logger:  l,
+        uploads: make(map[string][]UploadedFile),
+    }, nil
 }
 
 func (app *Application) Run() error {
-	defer app.logger.Close()
+    defer app.logger.Close()
 
-	if err := app.setupUploadDir(); err != nil {
-		return fmt.Errorf("setup failed: %w", err)
-	}
+    if err := app.setupUploadDir(); err != nil {
+        return fmt.Errorf("setup failed: %w", err)
+    }
 
-	http.HandleFunc("/upload", app.errorHandler(app.uploadFileHandler))
-	http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir(app.config.UploadPath))))
-	http.Handle("/", http.FileServer(http.Dir(app.config.StaticDir)))
+    // Обновленные роуты:
+    http.HandleFunc("/upload", app.corsMiddleware(app.optionalAuthMiddleware(app.errorHandler(app.uploadFileHandler))))
+    http.HandleFunc("/api/history", app.corsMiddleware(app.authMiddleware(app.errorHandler(app.historyHandler))))
+    http.HandleFunc("/api/upload/", app.corsMiddleware(app.optionalAuthMiddleware(app.errorHandler(app.uploadStatusHandler))))
+    
+    // Статические файлы
+    http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir(app.config.UploadPath))))
+    http.Handle("/", http.FileServer(http.Dir(app.config.StaticDir)))
 
-	app.logger.Info("Server starting on http://localhost:%s", app.config.Port)
-	return http.ListenAndServe(":"+app.config.Port, nil)
+    app.logger.Info("Server starting on http://localhost:%s", app.config.Port)
+    return http.ListenAndServe(":"+app.config.Port, nil)
+}
+
+// Необязательная аутентификация
+func (app *Application) optionalAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        var userID string
+        
+        // Пробуем получить токен
+        authHeader := r.Header.Get("Authorization")
+        if authHeader != "" {
+            token := strings.TrimPrefix(authHeader, "Bearer ")
+            if token == "demo_token" { // Валидный токен
+                userID = "user123"
+            }
+        }
+
+        // Если не авторизован - создаем анонимную сессию
+        if userID == "" {
+            sessionID := r.Header.Get("X-Session-ID")
+            if sessionID == "" {
+                sessionID = app.generateFileID() // Генерируем временный ID
+            }
+            userID = "anon_" + sessionID
+        }
+
+        ctx := context.WithValue(r.Context(), userIDKey, userID)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    }
+}
+
+func (app *Application) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // Временная заглушка - в реальности проверяем JWT или сессию
+        authHeader := r.Header.Get("Authorization")
+        if authHeader == "" {
+            w.WriteHeader(http.StatusUnauthorized)
+            json.NewEncoder(w).Encode(ErrorResponse{Error: "Authorization required"})
+            return
+        }
+
+        // Эмуляция проверки токена (в реальности будем использовать jwt.Parse и т.д.)
+        token := strings.TrimPrefix(authHeader, "Bearer ")
+        if token != "demo_token" { // Заменим на реальную проверку
+            w.WriteHeader(http.StatusForbidden)
+            json.NewEncoder(w).Encode(ErrorResponse{Error: "Invalid token"})
+            return
+        }
+
+        // Добавляем userID в контекст
+        ctx := context.WithValue(r.Context(), userIDKey, "user123") // Временное значение
+        next.ServeHTTP(w, r.WithContext(ctx))
+    }
+}
+
+func (app *Application) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        
+        if r.Method == "OPTIONS" {
+            return
+        }
+        
+        next.ServeHTTP(w, r)
+    }
 }
 
 func (app *Application) setupUploadDir() error {
@@ -119,8 +210,54 @@ func (app *Application) errorHandler(h func(http.ResponseWriter, *http.Request) 
     }
 }
 
+// GET /api/upload/{id} - статус конкретной загрузки
+func (app *Application) uploadStatusHandler(w http.ResponseWriter, r *http.Request) error {
+    if r.Method != http.MethodGet {
+        return app.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
+
+    fileID := strings.TrimPrefix(r.URL.Path, "/api/upload/")
+    if fileID == "" {
+        return app.sendError(w, "File ID required", http.StatusBadRequest)
+    }
+
+    app.mu.RLock()
+    defer app.mu.RUnlock()
+    
+    for _, file := range app.uploads["user123"] {
+        if file.ID == fileID {
+            w.Header().Set("Content-Type", "application/json")
+            return json.NewEncoder(w).Encode(file)
+        }
+    }
+
+    return app.sendError(w, "File not found", http.StatusNotFound)
+}
+
+// GET /api/history - список всех загрузок
+func (app *Application) historyHandler(w http.ResponseWriter, r *http.Request) error {
+    if r.Method != http.MethodGet {
+        return app.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
+
+    userID, ok := r.Context().Value("userID").(string)
+    if !ok || strings.HasPrefix(userID, "anon_") {
+        return app.sendError(w, "Authentication required", http.StatusUnauthorized)
+    }
+
+    app.mu.RLock()
+    defer app.mu.RUnlock()
+    
+    userUploads := app.uploads[userID] // Теперь используем реальный userID
+
+    w.Header().Set("Content-Type", "application/json")
+    return json.NewEncoder(w).Encode(userUploads)
+}
+
 func (app *Application) uploadFileHandler(w http.ResponseWriter, r *http.Request) error {
-    // Логирование начала обработки запроса
+    userID, _ := r.Context().Value("userID").(string)
+	
+	// Логирование начала обработки запроса
     app.logger.Debug("Starting file upload processing")
 
     if r.Method != http.MethodPost {
@@ -176,15 +313,56 @@ func (app *Application) uploadFileHandler(w http.ResponseWriter, r *http.Request
 
     app.logger.Info("File uploaded successfully: %s (%s)", newFileName, fileType)
 
-    response := SuccessResponse{
-        FileURL:  "/files/" + newFileName,
-        FileType: fileType,
-        Message:  "File uploaded successfully",
+	fileID := app.generateFileID()
+    processedPath := fmt.Sprintf("/processed/%s_result.mp4", fileID)
+
+    app.mu.Lock()
+    defer app.mu.Unlock()
+    
+    app.uploads[userID] = append(app.uploads[userID], UploadedFile{
+        ID:         fileID,
+        Original:   fileHeader.Filename,
+        Processed:  processedPath,
+        UploadedAt: time.Now(),
+        Status:     "processing", // Статус изменится при получении ответа от ML
+    })
+
+    // Эмуляция async-обработки ML (заглушка)
+    go app.simulateMLProcessing(fileID, "user123")
+
+    // Ответ фронту
+    response := struct {
+        SuccessResponse
+        FileID string `json:"file_id"`
+    }{
+        SuccessResponse: SuccessResponse{
+            FileURL:  "/files/" + newFileName,
+            FileType: fileType,
+            Message:  "File is being processed",
+        },
+        FileID: fileID,
     }
 
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusCreated) // Явно указываем статус 201
     return json.NewEncoder(w).Encode(response)
+}
+
+
+
+func (app *Application) simulateMLProcessing(fileID, userID string) {
+    time.Sleep(5 * time.Second) // Эмуляция работы ML
+
+    app.mu.Lock()
+    defer app.mu.Unlock()
+    
+    for i, file := range app.uploads[userID] {
+        if file.ID == fileID {
+            app.uploads[userID][i].Status = "completed"
+            app.uploads[userID][i].Processed = fmt.Sprintf("/processed/%s_processed.mp4", fileID)
+            break
+        }
+    }
 }
 
 func (app *Application) sendError(w http.ResponseWriter, message string, statusCode int) error {
@@ -226,4 +404,8 @@ func (app *Application) isAllowedExtension(ext string) bool {
 func (app *Application) generateFilename(original string) string {
     ext := filepath.Ext(original)
     return fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+}
+
+func (app *Application) generateFileID() string {
+    return fmt.Sprintf("%d", time.Now().UnixNano())
 }

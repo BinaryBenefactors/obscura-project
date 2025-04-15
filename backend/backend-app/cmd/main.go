@@ -83,7 +83,9 @@ func (app *Application) Run() error {
     
     // Статические файлы
     http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir(app.config.UploadPath))))
-    http.Handle("/", http.FileServer(http.Dir(app.config.StaticDir)))
+    
+    // В прошлом для хоста index.html через сервер Golang
+    // http.Handle("/", http.FileServer(http.Dir(app.config.StaticDir)))
 
     app.logger.Info("Server starting on http://localhost:%s", app.config.Port)
     return http.ListenAndServe(":"+app.config.Port, nil)

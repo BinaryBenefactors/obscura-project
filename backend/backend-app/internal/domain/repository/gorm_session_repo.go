@@ -65,3 +65,17 @@ func (r *GormSessionRepository) DeleteByUserID(ctx context.Context, userID uint)
 		Where("user_id = ?", userID).
 		Delete(&models.Session{}).Error
 }
+
+// List возвращает список сессий с пагинацией
+func (r *GormSessionRepository) List(ctx context.Context, offset, limit int) ([]*models.Session, error) {
+	var sessions []*models.Session
+	err := r.db.WithContext(ctx).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&sessions).Error
+	if err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}

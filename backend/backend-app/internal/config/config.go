@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 )
 
 type Config struct {
@@ -22,9 +23,15 @@ type DBConfig struct {
 }
 
 func NewConfig() *Config {
+	// Получаем абсолютный путь к директории загрузок
+	uploadPath, err := filepath.Abs("./uploads")
+	if err != nil {
+		uploadPath = "./uploads" // Fallback к относительному пути
+	}
+
 	return &Config{
 		MaxUploadSize: 50 * 1024 * 1024, // 50MB
-		UploadPath:    "./uploads",
+		UploadPath:    uploadPath,
 		LogFilePath:   "./app.log",
 		StaticDir:     "../../../frontend/static",
 		Port:          getEnv("PORT", "8080"),

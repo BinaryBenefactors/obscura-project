@@ -44,7 +44,8 @@ func (s *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 	}
 
 	// Генерируем уникальное имя файла
-	newFileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(file.Filename))
+	fileID := fmt.Sprintf("%d", time.Now().UnixNano())
+	newFileName := fmt.Sprintf("%s%s", fileID, filepath.Ext(file.Filename))
 	filePath := filepath.Join(s.uploadPath, newFileName)
 
 	// Создаем файл
@@ -61,8 +62,8 @@ func (s *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 
 	// Создаем запись в репозитории
 	uploadedFile := &models.UploadedFile{
-		ID:         fmt.Sprintf("%d", time.Now().UnixNano()),
-		Original:   file.Filename,
+		ID:         fileID,
+		Original:   newFileName,
 		Processed:  fmt.Sprintf("/processed/%s_result.mp4", newFileName),
 		UploadedAt: time.Now(),
 		Status:     string(models.StatusProcessing),
@@ -70,6 +71,8 @@ func (s *FileService) UploadFile(ctx context.Context, file *multipart.FileHeader
 	}
 
 	if err := s.repo.SaveFile(ctx, uploadedFile); err != nil {
+		// Если не удалось сохранить в репозиторий, удаляем файл
+		os.Remove(filePath)
 		return nil, fmt.Errorf("failed to save file info: %w", err)
 	}
 

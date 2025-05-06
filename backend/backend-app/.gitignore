@@ -1,2 +1,4 @@
 cmd/app.log
 cmd/uploads
+.env
+uploads/

@@ -60,6 +60,37 @@
 3. **Искусственный интеллект** используется для детекции объектов на изображениях и видео с целью их последующего блюра.
 4. **DevOps** отвечает за развертывание и поддержание приложения в рабочем состоянии.
 
+## Структуры проекта
+
+```
+/obscura-project
+  ├── Dockerfile.backend
+  ├── Dockerfile.frontend
+  ├── Dockerfile.nginx
+  ├── LICENSE
+  ├── README.md
+  ├── docker-compose.yml
+  ├── nginx/
+  │   └── nginx.conf
+  ├── frontend/
+  │   ├── .gitkeep
+  │   └── static/
+  │       └── index.html
+  ├── docs/
+  │   └── CONTRIBUTING.md
+  └── backend/
+      ├── .gitkeep
+      ├── ml/
+      │   └── .gitkeep
+      └── backend-app/
+          ├── .gitignore
+          ├── go.mod
+          ├── go.sum
+          └── cmd/
+              ├── app.log
+              └── main.go
+```
+
 ## Планируемые улучшения
 
 - Добавление новых типов блюра и масок.

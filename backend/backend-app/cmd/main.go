@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"obscura.app/backend/internal/config"
+	"obscura.app/backend/internal/domain/repository"
 	"obscura.app/backend/internal/handlers"
 	"obscura.app/backend/internal/handlers/middleware"
 	"obscura.app/backend/internal/services"
@@ -24,8 +25,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 
-	// TODO: Добавить реальную реализацию репозитория
-	fileService := services.NewFileService(nil, cfg.UploadPath, cfg.MaxUploadSize)
+	// Создаем репозиторий в памяти
+	fileRepo := repository.NewMemoryFileRepository()
+	fileService := services.NewFileService(fileRepo, cfg.UploadPath, cfg.MaxUploadSize)
 	fileHandler := handlers.NewFileHandler(fileService)
 
 	return &Application{

@@ -77,8 +77,10 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=appdb
+      - POSTGRES_MULTIPLE_DATABASES=appdb,obscura_test
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/backend-app/scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     networks:
       - app-network
 

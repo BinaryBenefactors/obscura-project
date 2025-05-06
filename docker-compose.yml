@@ -22,6 +22,21 @@ services:
     networks:
       - app-network
 
+  backend-test:
+    build:
+      context: ./backend/backend-app
+      dockerfile: Dockerfile.test
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=obscura_test
+      - DB_PORT=5432
+    depends_on:
+      - db
+    networks:
+      - app-network
+
   # ml:
   #   build: ./backend/ml
   #   environment:

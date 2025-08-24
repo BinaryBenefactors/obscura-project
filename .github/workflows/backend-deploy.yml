@@ -3,7 +3,7 @@ name: Deploy Backend
 on:
   push:
     branches:
-      - backend
+      - dev
 
 jobs:
   deploy:
@@ -22,7 +22,7 @@ jobs:
           port: 22
           script: |
             cd BinaryBenefactors/obscura-project/
-            git pull origin backend
+            git pull origin dev
             docker-compose down
             docker-compose up -d --build
 

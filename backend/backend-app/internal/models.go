@@ -42,7 +42,7 @@ type File struct {
 	MimeType     string    `json:"mime_type" gorm:"not null"`
 	Status       string    `json:"status" gorm:"default:'uploaded'"`
 	UploadedAt   time.Time `json:"uploaded_at"`
-	User         User      `json:"user" gorm:"foreignKey:UserID"`
+	User         User      `json:"-" gorm:"foreignKey:UserID"` // Убираем из JSON
 }
 
 // Статусы файлов
@@ -52,6 +52,19 @@ const (
 	StatusCompleted  = "completed"
 	StatusFailed     = "failed"
 )
+
+// UserStats статистика пользователя
+type UserStats struct {
+	TotalFiles      int     `json:"total_files"`
+	TotalSize       int64   `json:"total_size"`
+	TotalSizeMB     float64 `json:"total_size_mb"`
+	UploadedToday   int     `json:"uploaded_today"`
+	UploadedThisWeek int    `json:"uploaded_this_week"`
+	UploadedThisMonth int   `json:"uploaded_this_month"`
+	FilesByStatus   map[string]int `json:"files_by_status"`
+	FilesByType     map[string]int `json:"files_by_type"`
+	RecentFiles     []File  `json:"recent_files"`
+}
 
 // Структуры для API запросов/ответов
 type RegisterRequest struct {
@@ -63,6 +76,12 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type UpdateProfileRequest struct {
+	Email    string `json:"email,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 type AuthResponse struct {

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"obscura.app/internal"
 	"obscura.app/pkg/logger"
@@ -37,6 +41,41 @@ func main() {
 	// Настраиваем роуты
 	server.SetupRoutes()
 
-	appLogger.Info("Server starting on port %s", cfg.Port)
-	appLogger.Fatal("Server failed: %v", http.ListenAndServe(":"+cfg.Port, server.GetRouter()))
+	// Создаем HTTP сервер
+	httpServer := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      server.GetRouter(),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Запускаем сервер в горутине
+	go func() {
+		appLogger.Info("Server starting on port %s", cfg.Port)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			appLogger.Fatal("Server failed: %v", err)
+		}
+	}()
+
+	// Ожидание сигнала для graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	
+	<-quit
+	appLogger.Info("Shutting down server...")
+
+	// Graceful shutdown с таймаутом 30 секунд
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Останавливаем HTTP сервер
+	if err := httpServer.Shutdown(ctx); err != nil {
+		appLogger.Error("Server forced to shutdown: %v", err)
+	}
+
+	// Останавливаем внутренние сервисы
+	server.Stop()
+
+	appLogger.Info("Server exited")
 }

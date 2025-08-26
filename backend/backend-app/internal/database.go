@@ -2,6 +2,8 @@ package internal
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -52,6 +54,14 @@ func (d *Database) GetUserByID(id uint) (*User, error) {
 	return &user, err
 }
 
+func (d *Database) UpdateUser(user *User) error {
+	return d.DB.Save(user).Error
+}
+
+func (d *Database) DeleteUser(id uint) error {
+	return d.DB.Delete(&User{}, id).Error
+}
+
 // Методы для работы с файлами
 func (d *Database) CreateFile(file *File) error {
 	return d.DB.Create(file).Error
@@ -59,7 +69,7 @@ func (d *Database) CreateFile(file *File) error {
 
 func (d *Database) GetFileByID(id string) (*File, error) {
 	var file File
-	err := d.DB.Preload("User").First(&file, "id = ?", id).Error
+	err := d.DB.First(&file, "id = ?", id).Error
 	return &file, err
 }
 
@@ -75,4 +85,129 @@ func (d *Database) UpdateFileStatus(id string, status string) error {
 
 func (d *Database) DeleteFile(id string) error {
 	return d.DB.Delete(&File{}, "id = ?", id).Error
+}
+
+// Получение статистики пользователя
+func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
+	var stats UserStats
+	
+	// Общее количество файлов и их размер
+	var totalSize int64
+	var totalFiles int64
+	
+	err := d.DB.Model(&File{}).
+		Where("user_id = ?", userID).
+		Select("COUNT(*) as count, COALESCE(SUM(file_size), 0) as total").
+		Row().
+		Scan(&totalFiles, &totalSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get total stats: %w", err)
+	}
+	
+	stats.TotalFiles = int(totalFiles)
+	stats.TotalSize = totalSize
+	stats.TotalSizeMB = float64(totalSize) / (1024 * 1024)
+	
+	// Файлы загруженные сегодня
+	today := time.Now().Truncate(24 * time.Hour)
+	var todayCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND uploaded_at >= ?", userID, today).
+		Count(&todayCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get today stats: %w", err)
+	}
+	stats.UploadedToday = int(todayCount)
+	
+	// Файлы загруженные на этой неделе
+	weekStart := today.AddDate(0, 0, -int(today.Weekday()))
+	var weekCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND uploaded_at >= ?", userID, weekStart).
+		Count(&weekCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get week stats: %w", err)
+	}
+	stats.UploadedThisWeek = int(weekCount)
+	
+	// Файлы загруженные в этом месяце
+	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location())
+	var monthCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND uploaded_at >= ?", userID, monthStart).
+		Count(&monthCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get month stats: %w", err)
+	}
+	stats.UploadedThisMonth = int(monthCount)
+	
+	// Статистика по статусам файлов
+	var statusStats []struct {
+		Status string
+		Count  int
+	}
+	err = d.DB.Model(&File{}).
+		Select("status, COUNT(*) as count").
+		Where("user_id = ?", userID).
+		Group("status").
+		Find(&statusStats).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status stats: %w", err)
+	}
+	
+	stats.FilesByStatus = make(map[string]int)
+	for _, stat := range statusStats {
+		stats.FilesByStatus[stat.Status] = stat.Count
+	}
+	
+	// Статистика по типам файлов
+	var typeStats []struct {
+		MimeType string
+		Count    int
+	}
+	err = d.DB.Model(&File{}).
+		Select("mime_type, COUNT(*) as count").
+		Where("user_id = ?", userID).
+		Group("mime_type").
+		Find(&typeStats).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get type stats: %w", err)
+	}
+	
+	stats.FilesByType = make(map[string]int)
+	for _, stat := range typeStats {
+		// Упрощаем тип файла для отображения
+		simpleType := getSimpleFileType(stat.MimeType)
+		stats.FilesByType[simpleType] += stat.Count
+	}
+	
+	// Последние 5 файлов
+	var recentFiles []File
+	err = d.DB.Where("user_id = ?", userID).
+		Order("uploaded_at DESC").
+		Limit(5).
+		Find(&recentFiles).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent files: %w", err)
+	}
+	stats.RecentFiles = recentFiles
+	
+	return &stats, nil
+}
+
+// Вспомогательная функция для упрощения типов файлов
+func getSimpleFileType(mimeType string) string {
+	if strings.HasPrefix(mimeType, "image/") {
+		return "image"
+	}
+	if strings.HasPrefix(mimeType, "video/") {
+		return "video"
+	}
+	if strings.HasPrefix(mimeType, "audio/") {
+		return "audio"
+	}
+	if strings.HasPrefix(mimeType, "text/") {
+		return "text"
+	}
+	return "other"
 }

@@ -1,21 +1,81 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"obscura.app/backend/internal/logger"
+	"obscura.app/internal"
+	"obscura.app/pkg/logger"
 )
 
 func main() {
-    logger, err := logger.NewLogger("cmd/app.log")
-    if err != nil {
-        log.Fatalf("Could not initialize logger: %v", err)
-    }
-    defer logger.Close()
+	// Создаем логгер
+	appLogger, err := logger.NewLogger("app.log")
+	if err != nil {
+		log.Fatal("Failed to create logger:", err)
+	}
+	defer appLogger.Close()
 
-    logger.Info("This is an info message")
-    logger.Debug("This is a debug message")
-    logger.Warning("This is a warning message")
-    logger.Error("This is an error message")
-    logger.Fatal("This is a fatal message")
+	// Загружаем конфигурацию
+	cfg := internal.NewConfig()
+
+	// Создаем папку для загрузок
+	if err := os.MkdirAll(cfg.UploadPath, 0755); err != nil {
+		appLogger.Fatal("Failed to create upload directory: %v", err)
+	}
+
+	// Подключаемся к базе данных
+	db, err := internal.NewDatabase(cfg, appLogger)
+	if err != nil {
+		appLogger.Fatal("Failed to connect to database: %v", err)
+	}
+
+	// Создаем сервер
+	server := internal.NewServer(cfg, db, appLogger)
+
+	// Настраиваем роуты
+	server.SetupRoutes()
+
+	// Создаем HTTP сервер
+	httpServer := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      server.GetRouter(),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Запускаем сервер в горутине
+	go func() {
+		appLogger.Info("Server starting on port %s", cfg.Port)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			appLogger.Fatal("Server failed: %v", err)
+		}
+	}()
+
+	// Ожидание сигнала для graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	
+	<-quit
+	appLogger.Info("Shutting down server...")
+
+	// Graceful shutdown с таймаутом 30 секунд
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Останавливаем HTTP сервер
+	if err := httpServer.Shutdown(ctx); err != nil {
+		appLogger.Error("Server forced to shutdown: %v", err)
+	}
+
+	// Останавливаем внутренние сервисы
+	server.Stop()
+
+	appLogger.Info("Server exited")
 }

@@ -1,0 +1,2 @@
+2025/06/10 16:59:51 [FATAL] Failed to connect to database: failed to connect to database: failed to connect to `user=postgres database=obscura`: 127.0.0.1:5432 (localhost): dial error: dial tcp 127.0.0.1:5432: connect: connection refused
+2025/06/10 17:00:09 [FATAL] Failed to connect to database: failed to connect to database: failed to connect to `user=postgres database=obscura`: 127.0.0.1:5432 (localhost): dial error: dial tcp 127.0.0.1:5432: connect: connection refused

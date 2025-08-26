@@ -1,0 +1,96 @@
+services:
+  backend-app:
+    build: 
+      context: ./backend/backend-app
+      dockerfile: Dockerfile
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=appdb  # Синхронизировано с POSTGRES_DB
+      - DB_PORT=5432
+      - JWT_SECRET=your-secret-key-change-in-production
+      - UPLOAD_PATH=/app/uploads
+      - MAX_FILE_SIZE=52428800  # 50MB
+      # - ML_SERVICE_URL=http://ml:5000
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      # - ml
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# backend-test:
+  #   build:
+  #     context: ./backend/backend-app
+  #     dockerfile: Dockerfile.test
+  #   environment:
+  #     - DB_HOST=db
+  #     - DB_USER=postgres
+  #     - DB_PASSWORD=postgres
+  #     - DB_NAME=obscura_test
+  #     - DB_PORT=5432
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - app-network
+
+  # ml:
+  #   build: ./backend/ml
+  #   environment:
+  #     - MODEL_PATH=/models/your_model
+  #   volumes:
+  #     - models:/models
+  #   ports:
+  #     - "5000:5000"
+  #   networks:
+  #     - app-network
+
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile.frontend
+    networks:
+      - app-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/ssl:/etc/ssl 
+    depends_on:
+      - backend-app
+      - frontend
+      # - ml
+    networks:
+      - app-network
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=appdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # Для локального подключения при отладке
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

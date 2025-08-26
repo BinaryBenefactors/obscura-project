@@ -1,0 +1,271 @@
+package internal
+
+import (
+	"fmt"
+	"mime/multipart"
+	"net/http"
+	"regexp"
+	"strings"
+)
+
+// Validator структура для валидации данных
+type Validator struct {
+	maxFileSize      int64
+	allowedMimeTypes map[string]bool
+	allowedExtensions map[string]bool
+}
+
+// NewValidator создает новый валидатор
+func NewValidator(maxFileSize int64) *Validator {
+	return &Validator{
+		maxFileSize: maxFileSize,
+		allowedMimeTypes: map[string]bool{
+			// Изображения
+			"image/jpeg":    true,
+			"image/jpg":     true,
+			"image/png":     true,
+			"image/gif":     true,
+			"image/webp":    true,
+			"image/bmp":     true,
+			"image/tiff":    true,
+			// Видео
+			"video/mp4":     true,
+			"video/avi":     true,
+			"video/mov":     true,
+			"video/wmv":     true,
+			"video/flv":     true,
+			"video/webm":    true,
+			"video/mkv":     true,
+			"video/quicktime": true,
+		},
+		allowedExtensions: map[string]bool{
+			// Изображения
+			".jpg":  true,
+			".jpeg": true,
+			".png":  true,
+			".gif":  true,
+			".webp": true,
+			".bmp":  true,
+			".tiff": true,
+			".tif":  true,
+			// Видео
+			".mp4":  true,
+			".avi":  true,
+			".mov":  true,
+			".wmv":  true,
+			".flv":  true,
+			".webm": true,
+			".mkv":  true,
+		},
+	}
+}
+
+// ValidationError ошибка валидации
+type ValidationError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+func (e ValidationError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Field, e.Message)
+}
+
+// ValidateEmail проверяет корректность email
+func (v *Validator) ValidateEmail(email string) error {
+	if email == "" {
+		return ValidationError{Field: "email", Message: "Email is required"}
+	}
+	
+	if len(email) > 254 {
+		return ValidationError{Field: "email", Message: "Email is too long"}
+	}
+	
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	if !emailRegex.MatchString(email) {
+		return ValidationError{Field: "email", Message: "Invalid email format"}
+	}
+	
+	return nil
+}
+
+// ValidatePassword проверяет надежность пароля
+func (v *Validator) ValidatePassword(password string) error {
+	if password == "" {
+		return ValidationError{Field: "password", Message: "Password is required"}
+	}
+	
+	if len(password) < 6 {
+		return ValidationError{Field: "password", Message: "Password must be at least 6 characters long"}
+	}
+	
+	if len(password) > 128 {
+		return ValidationError{Field: "password", Message: "Password is too long (max 128 characters)"}
+	}
+	
+	// Проверяем на слишком простые пароли
+	simple := []string{"123456", "password", "123456789", "qwerty", "abc123", "111111"}
+	lowPassword := strings.ToLower(password)
+	for _, simplePass := range simple {
+		if lowPassword == simplePass {
+			return ValidationError{Field: "password", Message: "Password is too simple"}
+		}
+	}
+	
+	return nil
+}
+
+// ValidateName проверяет корректность имени
+func (v *Validator) ValidateName(name string) error {
+	if name == "" {
+		return ValidationError{Field: "name", Message: "Name is required"}
+	}
+	
+	if len(name) < 2 {
+		return ValidationError{Field: "name", Message: "Name must be at least 2 characters long"}
+	}
+	
+	if len(name) > 100 {
+		return ValidationError{Field: "name", Message: "Name is too long (max 100 characters)"}
+	}
+	
+	// Проверяем на допустимые символы
+	nameRegex := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ\s\-'\.]+$`)
+	if !nameRegex.MatchString(name) {
+		return ValidationError{Field: "name", Message: "Name contains invalid characters"}
+	}
+	
+	return nil
+}
+
+// ValidateFile проверяет загружаемый файл
+func (v *Validator) ValidateFile(fileHeader *multipart.FileHeader) error {
+	if fileHeader == nil {
+		return ValidationError{Field: "file", Message: "File is required"}
+	}
+	
+	// Проверяем размер файла
+	if fileHeader.Size > v.maxFileSize {
+		return ValidationError{
+			Field:   "file", 
+			Message: fmt.Sprintf("File is too large (max %d MB)", v.maxFileSize/(1024*1024)),
+		}
+	}
+	
+	if fileHeader.Size == 0 {
+		return ValidationError{Field: "file", Message: "File is empty"}
+	}
+	
+	// Проверяем расширение файла
+	filename := strings.ToLower(fileHeader.Filename)
+	isValidExt := false
+	for ext := range v.allowedExtensions {
+		if strings.HasSuffix(filename, ext) {
+			isValidExt = true
+			break
+		}
+	}
+	
+	if !isValidExt {
+		return ValidationError{
+			Field:   "file", 
+			Message: "Invalid file type. Only images and videos are allowed",
+		}
+	}
+	
+	// Проверяем MIME-тип
+	file, err := fileHeader.Open()
+	if err != nil {
+		return ValidationError{Field: "file", Message: "Cannot read file"}
+	}
+	defer file.Close()
+	
+	// Читаем первые 512 байт для определения MIME-типа
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil {
+		return ValidationError{Field: "file", Message: "Cannot read file content"}
+	}
+	
+	mimeType := http.DetectContentType(buffer)
+	
+	// Проверяем основной тип MIME
+	if !strings.HasPrefix(mimeType, "image/") && !strings.HasPrefix(mimeType, "video/") {
+		return ValidationError{
+			Field:   "file", 
+			Message: "Invalid file type. Only images and videos are allowed",
+		}
+	}
+	
+	return nil
+}
+
+// ValidateRegistration проверяет данные регистрации
+func (v *Validator) ValidateRegistration(req RegisterRequest) []ValidationError {
+	var errors []ValidationError
+	
+	if err := v.ValidateEmail(req.Email); err != nil {
+		if ve, ok := err.(ValidationError); ok {
+			errors = append(errors, ve)
+		}
+	}
+	
+	if err := v.ValidatePassword(req.Password); err != nil {
+		if ve, ok := err.(ValidationError); ok {
+			errors = append(errors, ve)
+		}
+	}
+	
+	if err := v.ValidateName(req.Name); err != nil {
+		if ve, ok := err.(ValidationError); ok {
+			errors = append(errors, ve)
+		}
+	}
+	
+	return errors
+}
+
+// ValidateLogin проверяет данные входа
+func (v *Validator) ValidateLogin(req LoginRequest) []ValidationError {
+	var errors []ValidationError
+	
+	if req.Email == "" {
+		errors = append(errors, ValidationError{Field: "email", Message: "Email is required"})
+	}
+	
+	if req.Password == "" {
+		errors = append(errors, ValidationError{Field: "password", Message: "Password is required"})
+	}
+	
+	return errors
+}
+
+// ValidateProfileUpdate проверяет данные обновления профиля
+func (v *Validator) ValidateProfileUpdate(req UpdateProfileRequest) []ValidationError {
+	var errors []ValidationError
+	
+	if req.Email != "" {
+		if err := v.ValidateEmail(req.Email); err != nil {
+			if ve, ok := err.(ValidationError); ok {
+				errors = append(errors, ve)
+			}
+		}
+	}
+	
+	if req.Password != "" {
+		if err := v.ValidatePassword(req.Password); err != nil {
+			if ve, ok := err.(ValidationError); ok {
+				errors = append(errors, ve)
+			}
+		}
+	}
+	
+	if req.Name != "" {
+		if err := v.ValidateName(req.Name); err != nil {
+			if ve, ok := err.(ValidationError); ok {
+				errors = append(errors, ve)
+			}
+		}
+	}
+	
+	return errors
+}

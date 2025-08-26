@@ -10,6 +10,7 @@
             --success-color: #34a853;
             --error-color: #ea4335;
             --border-color: #dadce0;
+            --warning-color: #fbbc04;
         }
         
         body {
@@ -134,6 +135,12 @@
             color: var(--error-color);
             display: block;
         }
+
+        .status.warning {
+            background-color: rgba(251, 188, 4, 0.1);
+            color: var(--warning-color);
+            display: block;
+        }
         
         .progress-container {
             width: 100%;
@@ -166,11 +173,83 @@
             margin-top: 20px;
             display: none;
         }
+
+        .auth-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .auth-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .auth-form input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .user-info {
+            color: var(--success-color);
+            font-weight: 500;
+        }
+
+        .anonymous-notice {
+            background-color: rgba(251, 188, 4, 0.1);
+            border: 1px solid var(--warning-color);
+            color: #e37400;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .toggle-auth {
+            margin-top: 10px;
+        }
+
+        .toggle-auth button {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Загрузка фото и видео</h1>
+        
+        <!-- Уведомление для анонимных пользователей -->
+        <div id="anonymousNotice" class="anonymous-notice">
+            ⚠️ <strong>Анонимный режим:</strong> Ваши файлы не будут сохранены в истории. 
+            Для сохранения файлов в личном кабинете войдите в систему.
+        </div>
+        
+        <!-- Секция авторизации -->
+        <div class="auth-section">
+            <div id="loginForm" class="auth-form" style="display: none;">
+                <input type="email" id="emailInput" placeholder="Email" required>
+                <input type="password" id="passwordInput" placeholder="Пароль" required>
+                <button class="btn" id="loginBtn">Войти</button>
+                <button class="btn" id="registerBtn">Регистрация</button>
+            </div>
+            <div id="userInfo" class="user-info" style="display: none;">
+                Вы вошли как: <span id="userName"></span>
+                <button class="btn" id="logoutBtn" style="margin-left: 10px;">Выйти</button>
+            </div>
+            <div class="toggle-auth">
+                <button id="toggleAuthBtn">Войти в систему</button>
+            </div>
+        </div>
         
         <div class="upload-area" id="uploadArea">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -220,14 +299,165 @@
             const viewBtn = document.getElementById('viewBtn');
             const mediaPlayerContainer = document.getElementById('mediaPlayerContainer');
             
+            // Элементы авторизации
+            const anonymousNotice = document.getElementById('anonymousNotice');
+            const loginForm = document.getElementById('loginForm');
+            const userInfo = document.getElementById('userInfo');
+            const emailInput = document.getElementById('emailInput');
+            const passwordInput = document.getElementById('passwordInput');
+            const loginBtn = document.getElementById('loginBtn');
+            const registerBtn = document.getElementById('registerBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const userName = document.getElementById('userName');
+            const toggleAuthBtn = document.getElementById('toggleAuthBtn');
+            
             // Переменные состояния
             let selectedFile = null;
             let fileUrl = null;
             let isMediaShown = false;
+            let authToken = localStorage.getItem('authToken');
+            let currentUser = null;
+            let isAuthMode = false;
             
             // Инициализация
             progressContainer.style.display = 'none';
             previewContainer.style.display = 'none';
+            
+            // Проверяем авторизацию при загрузке
+            if (authToken) {
+                enableAuthMode();
+                // Здесь можно добавить проверку валидности токена
+            } else {
+                enableAnonymousMode();
+            }
+            
+            // Функции режимов
+            function enableAnonymousMode() {
+                isAuthMode = false;
+                anonymousNotice.style.display = 'block';
+                loginForm.style.display = 'none';
+                userInfo.style.display = 'none';
+                toggleAuthBtn.textContent = 'Войти в систему';
+                fileInfo.textContent = 'Файл не выбран';
+            }
+            
+            function enableAuthMode() {
+                isAuthMode = true;
+                anonymousNotice.style.display = 'none';
+                if (authToken && currentUser) {
+                    loginForm.style.display = 'none';
+                    userInfo.style.display = 'block';
+                    userName.textContent = currentUser.name || currentUser.email;
+                    toggleAuthBtn.textContent = 'Выйти из аккаунта';
+                } else {
+                    loginForm.style.display = 'flex';
+                    userInfo.style.display = 'none';
+                    toggleAuthBtn.textContent = 'Анонимный режим';
+                }
+                fileInfo.textContent = 'Файл не выбран';
+            }
+            
+            // Функции авторизации
+            async function login(email, password) {
+                try {
+                    const response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        authToken = data.token;
+                        currentUser = data.user;
+                        localStorage.setItem('authToken', authToken);
+                        enableAuthMode();
+                        showStatus('Успешная авторизация!', 'success');
+                    } else {
+                        showStatus(data.error || 'Ошибка авторизации', 'error');
+                    }
+                } catch (error) {
+                    showStatus('Ошибка соединения', 'error');
+                    console.error('Login error:', error);
+                }
+            }
+            
+            async function register(email, password) {
+                const name = prompt('Введите ваше имя:');
+                if (!name) return;
+                
+                try {
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password, name })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        authToken = data.token;
+                        currentUser = data.user;
+                        localStorage.setItem('authToken', authToken);
+                        enableAuthMode();
+                        showStatus('Регистрация успешна!', 'success');
+                    } else {
+                        showStatus(data.error || 'Ошибка регистрации', 'error');
+                    }
+                } catch (error) {
+                    showStatus('Ошибка соединения', 'error');
+                    console.error('Register error:', error);
+                }
+            }
+            
+            function logout() {
+                authToken = null;
+                currentUser = null;
+                localStorage.removeItem('authToken');
+                enableAnonymousMode();
+                showStatus('Вы вышли из системы', 'success');
+            }
+            
+            // Обработчики событий для авторизации
+            toggleAuthBtn.addEventListener('click', () => {
+                if (authToken && currentUser) {
+                    // Если пользователь авторизован, выходим
+                    logout();
+                } else if (isAuthMode) {
+                    // Если в режиме авторизации, переключаемся в анонимный
+                    enableAnonymousMode();
+                } else {
+                    // Если в анонимном режиме, переключаемся в режим авторизации
+                    enableAuthMode();
+                }
+            });
+            
+            loginBtn.addEventListener('click', () => {
+                const email = emailInput.value.trim();
+                const password = passwordInput.value.trim();
+                if (email && password) {
+                    login(email, password);
+                } else {
+                    showStatus('Заполните все поля', 'error');
+                }
+            });
+            
+            registerBtn.addEventListener('click', () => {
+                const email = emailInput.value.trim();
+                const password = passwordInput.value.trim();
+                if (email && password) {
+                    register(email, password);
+                } else {
+                    showStatus('Заполните все поля', 'error');
+                }
+            });
+            
+            logoutBtn.addEventListener('click', logout);
             
             // Обработчики событий для drag and drop
             uploadArea.addEventListener('dragover', (e) => {
@@ -286,10 +516,13 @@
             
             // Функция загрузки файла
             function uploadFile() {
-                if (!selectedFile) return;
+                if (!selectedFile) {
+                    showStatus('Выберите файл', 'error');
+                    return;
+                }
                 
                 const formData = new FormData();
-                formData.append('mediaFile', selectedFile);
+                formData.append('file', selectedFile);
                 
                 const xhr = new XMLHttpRequest();
                 
@@ -309,24 +542,45 @@
                 });
                 
                 xhr.addEventListener('load', () => {
-                    if (xhr.status === 201) {
-                        const response = JSON.parse(xhr.responseText);
-                        fileUrl = response.fileUrl;
-                        showStatus('Файл успешно загружен! Нажмите "Просмотреть"', 'success');
-                        previewContainer.style.display = 'block';
-                    } else {
-                        const error = JSON.parse(xhr.responseText);
-                        showStatus(error.error || 'Ошибка при загрузке файла', 'error');
-                    }
                     uploadBtn.disabled = false;
+                    
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (xhr.status === 200) {
+                            // Создаем URL для скачивания файла
+                            fileUrl = `/api/files/${response.data.id}`;
+                            
+                            if (authToken) {
+                                showStatus('Файл успешно загружен и сохранен в истории!', 'success');
+                            } else {
+                                showStatus('Файл успешно загружен! (не сохранен в истории)', 'warning');
+                            }
+                            
+                            previewContainer.style.display = 'block';
+                        } else {
+                            showStatus(response.error || 'Ошибка при загрузке файла', 'error');
+                        }
+                    } catch (error) {
+                        showStatus('Ошибка обработки ответа сервера', 'error');
+                        console.error('Response parsing error:', error);
+                        console.error('Response text:', xhr.responseText);
+                    }
                 });
                 
                 xhr.addEventListener('error', () => {
                     showStatus('Ошибка соединения', 'error');
                     uploadBtn.disabled = false;
+                    console.error('Upload error');
                 });
                 
-                xhr.open('POST', '/upload', true);
+                xhr.open('POST', '/api/upload', true);
+                
+                // Добавляем токен авторизации если он есть
+                if (authToken) {
+                    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+                }
+                
                 xhr.send(formData);
             }
             
@@ -358,7 +612,6 @@
                         video.src = fileUrl;
                         video.className = 'media-player';
                         video.controls = true;
-                        video.autoplay = true;
                         video.onerror = () => {
                             mediaPlayerContainer.innerHTML = '<p>Ошибка загрузки видео</p>';
                         };

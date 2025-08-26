@@ -1,16 +1,17 @@
-version: '3.8'
-
 services:
   backend-app:
     build: 
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ./backend/backend-app
+      dockerfile: Dockerfile
     environment:
       - DB_HOST=db
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=appdb
+      - DB_NAME=appdb  # Синхронизировано с POSTGRES_DB
       - DB_PORT=5432
+      - JWT_SECRET=your-secret-key-change-in-production
+      - UPLOAD_PATH=/app/uploads
+      - MAX_FILE_SIZE=52428800  # 50MB
       # - ML_SERVICE_URL=http://ml:5000
     volumes:
       - uploads:/app/uploads
@@ -21,21 +22,22 @@ services:
       # - ml
     networks:
       - app-network
+    restart: unless-stopped
 
-  backend-test:
-    build:
-      context: ./backend/backend-app
-      dockerfile: Dockerfile.test
-    environment:
-      - DB_HOST=db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=obscura_test
-      - DB_PORT=5432
-    depends_on:
-      - db
-    networks:
-      - app-network
+# backend-test:
+  #   build:
+  #     context: ./backend/backend-app
+  #     dockerfile: Dockerfile.test
+  #   environment:
+  #     - DB_HOST=db
+  #     - DB_USER=postgres
+  #     - DB_PASSWORD=postgres
+  #     - DB_NAME=obscura_test
+  #     - DB_PORT=5432
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - app-network
 
   # ml:
   #   build: ./backend/ml
@@ -77,17 +79,17 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=appdb
-      - POSTGRES_MULTIPLE_DATABASES=appdb,obscura_test
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/backend-app/scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    ports:
+      - "5432:5432"  # Для локального подключения при отладке
     networks:
       - app-network
+    restart: unless-stopped
 
 volumes:
   uploads:
   postgres_data:
-  models:
 
 networks:
   app-network:

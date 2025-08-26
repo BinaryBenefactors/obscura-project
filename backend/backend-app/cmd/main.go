@@ -1,78 +1,81 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"obscura.app/backend/internal/config"
-	"obscura.app/backend/internal/domain/repository"
-	"obscura.app/backend/internal/handlers"
-	"obscura.app/backend/internal/handlers/middleware"
-	"obscura.app/backend/internal/services"
-	"obscura.app/backend/pkg/logger"
+	"obscura.app/internal"
+	"obscura.app/pkg/logger"
 )
 
-type Application struct {
-	config      *config.Config
-	logger      *logger.Logger
-	fileHandler *handlers.FileHandler
-}
-
-func NewApplication(cfg *config.Config) (*Application, error) {
-	l, err := logger.NewLogger(cfg.LogFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("logger init failed: %w", err)
-	}
-
-	// Создаем репозиторий в памяти
-	fileRepo := repository.NewMemoryFileRepository()
-	fileService := services.NewFileService(fileRepo, cfg.UploadPath, cfg.MaxUploadSize)
-	fileHandler := handlers.NewFileHandler(fileService)
-
-	return &Application{
-		config:      cfg,
-		logger:      l,
-		fileHandler: fileHandler,
-	}, nil
-}
-
-func (app *Application) Run() error {
-	defer app.logger.Close()
-
-	// Роуты
-	http.HandleFunc("/upload",
-		middleware.CORSMiddleware(
-			middleware.OptionalAuthMiddleware(
-				middleware.ErrorHandler(app.logger, app.fileHandler.UploadFile))))
-
-	http.HandleFunc("/api/history",
-		middleware.CORSMiddleware(
-			middleware.AuthMiddleware(
-				middleware.ErrorHandler(app.logger, app.fileHandler.GetUserFiles))))
-
-	http.HandleFunc("/api/upload/",
-		middleware.CORSMiddleware(
-			middleware.OptionalAuthMiddleware(
-				middleware.ErrorHandler(app.logger, app.fileHandler.GetFileStatus))))
-
-	// Статические файлы
-	http.Handle("/files/", http.StripPrefix("/files/", http.FileServer(http.Dir(app.config.UploadPath))))
-
-	app.logger.Info("Server starting on http://localhost:%s", app.config.Port)
-	return http.ListenAndServe(":"+app.config.Port, nil)
-}
-
 func main() {
-	cfg := config.NewConfig()
-
-	app, err := NewApplication(cfg)
+	// Создаем логгер
+	appLogger, err := logger.NewLogger("app.log")
 	if err != nil {
-		fmt.Printf("FATAL: %v\n", err)
-		os.Exit(1)
+		log.Fatal("Failed to create logger:", err)
+	}
+	defer appLogger.Close()
+
+	// Загружаем конфигурацию
+	cfg := internal.NewConfig()
+
+	// Создаем папку для загрузок
+	if err := os.MkdirAll(cfg.UploadPath, 0755); err != nil {
+		appLogger.Fatal("Failed to create upload directory: %v", err)
 	}
 
-	if err := app.Run(); err != nil {
-		app.logger.Fatal("Server failed: %v", err)
+	// Подключаемся к базе данных
+	db, err := internal.NewDatabase(cfg, appLogger)
+	if err != nil {
+		appLogger.Fatal("Failed to connect to database: %v", err)
 	}
+
+	// Создаем сервер
+	server := internal.NewServer(cfg, db, appLogger)
+
+	// Настраиваем роуты
+	server.SetupRoutes()
+
+	// Создаем HTTP сервер
+	httpServer := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      server.GetRouter(),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Запускаем сервер в горутине
+	go func() {
+		appLogger.Info("Server starting on port %s", cfg.Port)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			appLogger.Fatal("Server failed: %v", err)
+		}
+	}()
+
+	// Ожидание сигнала для graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	
+	<-quit
+	appLogger.Info("Shutting down server...")
+
+	// Graceful shutdown с таймаутом 30 секунд
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Останавливаем HTTP сервер
+	if err := httpServer.Shutdown(ctx); err != nil {
+		appLogger.Error("Server forced to shutdown: %v", err)
+	}
+
+	// Останавливаем внутренние сервисы
+	server.Stop()
+
+	appLogger.Info("Server exited")
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"obscura.app/pkg/logger"
 )
 
@@ -27,13 +28,8 @@ type Server struct {
 }
 
 func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
-	// Создаем rate limiter: 3 загрузки в сутки для анонимных пользователей
 	rateLimiter := NewRateLimiter(3, 24*time.Hour)
-	
-	// Создаем валидатор
 	validator := NewValidator(config.MaxFileSize)
-	
-	// Создаем file cleaner
 	fileCleaner := NewFileCleaner(config.UploadPath, logger)
 	
 	server := &Server{
@@ -46,13 +42,14 @@ func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
 		fileCleaner: fileCleaner,
 	}
 	
-	// Запускаем автоочистку файлов
 	fileCleaner.Start()
-	
 	return server
 }
 
 func (s *Server) SetupRoutes() {
+	// Swagger UI
+	s.router.HandleFunc("/swagger/", httpSwagger.WrapHandler)
+	
 	// Middleware для CORS
 	s.router.HandleFunc("/", s.corsMiddleware(s.handleRoot))
 
@@ -67,19 +64,19 @@ func (s *Server) SetupRoutes() {
 	s.router.HandleFunc("/api/user/profile", s.corsMiddleware(s.authMiddleware(s.handleUserProfile)))
 	s.router.HandleFunc("/api/user/profile/update", s.corsMiddleware(s.authMiddleware(s.handleUpdateProfile)))
 	
-	// Загрузка файлов - доступна для всех (с опциональной авторизацией)
+	// Загрузка файлов
 	s.router.HandleFunc("/api/upload", s.corsMiddleware(s.optionalAuthMiddleware(s.handleUpload)))
 	
-	// Получение списка файлов - только для авторизованных
+	// Получение списка файлов
 	s.router.HandleFunc("/api/files", s.corsMiddleware(s.authMiddleware(s.handleGetFiles)))
 	
-	// Действия с файлами - доступны для всех (анонимные файлы по ID, пользовательские с проверкой)
+	// Действия с файлами
 	s.router.HandleFunc("/api/files/", s.corsMiddleware(s.optionalAuthMiddleware(s.handleFileActions)))
 	
 	// Статистика для профиля
 	s.router.HandleFunc("/api/user/stats", s.corsMiddleware(s.authMiddleware(s.handleUserStats)))
 	
-	// Административная информация (только для отладки)
+	// Административная информация
 	s.router.HandleFunc("/api/admin/stats", s.corsMiddleware(s.handleAdminStats))
 }
 
@@ -107,16 +104,15 @@ func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Опциональный middleware для аутентификации (не требует авторизации, но проверяет если токен есть)
+// Опциональный middleware для аутентификации
 func (s *Server) optionalAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("Optional auth middleware for %s %s", r.Method, r.URL.Path)
 		
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			// Нет авторизации - продолжаем как анонимный пользователь
 			s.logger.Debug("No authorization header - proceeding as anonymous user")
-			r.Header.Set("X-User-ID", "0") // 0 означает анонимный пользователь
+			r.Header.Set("X-User-ID", "0")
 			next(w, r)
 			return
 		}
@@ -223,7 +219,12 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Обработчик корневого маршрута
+// @Summary API information
+// @Description Get basic API information and version
+// @Tags system
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router / [get]
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	s.sendJSON(w, map[string]string{
 		"message": "Obscura API",
@@ -231,14 +232,19 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Health check endpoint
+// @Summary Health check
+// @Description Check system health including database connection and file system stats
+// @Tags system
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 503 {object} ErrorResponse
+// @Router /health [get]
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Проверяем подключение к БД
 	sqlDB, err := s.db.DB.DB()
 	if err != nil {
 		s.sendError(w, "Database connection error", http.StatusServiceUnavailable)
@@ -250,51 +256,36 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем статистику файлов
 	fileStats, err := s.fileCleaner.GetStats()
 	if err != nil {
 		s.logger.Warning("Failed to get file stats: %v", err)
 		fileStats = map[string]interface{}{"error": "failed to get stats"}
 	}
 
-	// Получаем статистику rate limiter'а
 	rateLimiterStats := s.rateLimiter.GetStats()
 
 	health := map[string]interface{}{
-		"status":      "healthy",
-		"timestamp":   time.Now(),
-		"version":     "1.0.0",
-		"database":    "connected",
-		"file_system": fileStats,
+		"status":       "healthy",
+		"timestamp":    time.Now(),
+		"version":      "1.0.0",
+		"database":     "connected",
+		"file_system":  fileStats,
 		"rate_limiter": rateLimiterStats,
 	}
 
 	s.sendJSON(w, health)
 }
 
-// Административная статистика
-func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		s.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	fileStats, _ := s.fileCleaner.GetStats()
-	rateLimiterStats := s.rateLimiter.GetStats()
-
-	stats := map[string]interface{}{
-		"server_uptime":  time.Since(time.Now().Add(-time.Hour)), // Примерное время работы
-		"file_system":    fileStats,
-		"rate_limiter":   rateLimiterStats,
-	}
-
-	s.sendJSON(w, SuccessResponse{
-		Message: "Admin stats retrieved",
-		Data:    stats,
-	})
-}
-
-// Регистрация пользователя
+// @Summary Register new user
+// @Description Create a new user account with email, password and name
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RegisterRequest true "User registration data"
+// @Success 200 {object} AuthResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 409 {object} ErrorResponse
+// @Router /api/register [post]
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.logger.Warning("Invalid method %s for register endpoint", r.Method)
@@ -311,21 +302,18 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Registration attempt for email: %s", req.Email)
 
-	// Валидация входных данных
 	if validationErrors := s.validator.ValidateRegistration(req); len(validationErrors) > 0 {
 		s.logger.Warning("Validation failed for registration: %s", req.Email)
 		s.sendValidationErrors(w, validationErrors)
 		return
 	}
 
-	// Проверяем, существует ли пользователь
 	if _, err := s.db.GetUserByEmail(req.Email); err == nil {
 		s.logger.Warning("User already exists: %s", req.Email)
 		s.sendError(w, "User already exists", http.StatusConflict)
 		return
 	}
 
-	// Создаем пользователя
 	user := &User{
 		Email:    req.Email,
 		Password: req.Password,
@@ -338,7 +326,6 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Генерируем токен
 	token, err := s.generateJWT(user.ID)
 	if err != nil {
 		s.logger.Error("Failed to generate token for user %d: %v", user.ID, err)
@@ -353,7 +340,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Авторизация пользователя
+// @Summary User login
+// @Description Authenticate user with email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "User login credentials"
+// @Success 200 {object} AuthResponse
+// @Failure 401 {object} ErrorResponse
+// @Router /api/login [post]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.logger.Warning("Invalid method %s for login endpoint", r.Method)
@@ -368,7 +363,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация входных данных
 	if validationErrors := s.validator.ValidateLogin(req); len(validationErrors) > 0 {
 		s.logger.Warning("Validation failed for login")
 		s.sendValidationErrors(w, validationErrors)
@@ -377,7 +371,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Login attempt for email: %s", req.Email)
 
-	// Находим пользователя
 	user, err := s.db.GetUserByEmail(req.Email)
 	if err != nil {
 		s.logger.Warning("Login failed - user not found: %s", req.Email)
@@ -385,14 +378,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем пароль
 	if !user.CheckPassword(req.Password) {
 		s.logger.Warning("Login failed - invalid password for user: %s", req.Email)
 		s.sendError(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	// Генерируем токен
 	token, err := s.generateJWT(user.ID)
 	if err != nil {
 		s.logger.Error("Failed to generate token for user %d: %v", user.ID, err)
@@ -407,7 +398,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Получение профиля пользователя
+// @Summary Get user profile
+// @Description Get current user profile information
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} SuccessResponse{data=User}
+// @Failure 401 {object} ErrorResponse
+// @Router /api/user/profile [get]
 func (s *Server) handleUserProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.logger.Warning("Invalid method %s for profile endpoint", r.Method)
@@ -439,7 +437,16 @@ func (s *Server) handleUserProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Обновление профиля пользователя
+// @Summary Update user profile
+// @Description Update user profile information (name, email, password)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body UpdateProfileRequest true "Profile update data"
+// @Success 200 {object} SuccessResponse{data=User}
+// @Failure 401 {object} ErrorResponse
+// @Router /api/user/profile/update [put]
 func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		s.logger.Warning("Invalid method %s for update profile endpoint", r.Method)
@@ -461,7 +468,6 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация входных данных
 	if validationErrors := s.validator.ValidateProfileUpdate(req); len(validationErrors) > 0 {
 		s.logger.Warning("Validation failed for profile update for user %d", userID)
 		s.sendValidationErrors(w, validationErrors)
@@ -470,7 +476,6 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Profile update attempt for user %d", userID)
 
-	// Получаем текущего пользователя
 	user, err := s.db.GetUserByID(uint(userID))
 	if err != nil {
 		s.logger.Error("Failed to get user for profile update %d: %v", userID, err)
@@ -478,7 +483,6 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Обновляем только предоставленные поля
 	updated := false
 	if req.Name != "" && req.Name != user.Name {
 		user.Name = req.Name
@@ -486,7 +490,6 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Email != "" && req.Email != user.Email {
-		// Проверяем, не занят ли новый email
 		if _, err := s.db.GetUserByEmail(req.Email); err == nil {
 			s.logger.Warning("Email already taken during profile update: %s", req.Email)
 			s.sendError(w, "Email already taken", http.StatusConflict)
@@ -515,7 +518,6 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Сохраняем изменения
 	if err := s.db.UpdateUser(user); err != nil {
 		s.logger.Error("Failed to update user profile %d: %v", userID, err)
 		s.sendError(w, "Failed to update profile", http.StatusInternalServerError)
@@ -530,7 +532,14 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Статистика пользователя
+// @Summary Get user statistics
+// @Description Get detailed statistics about user's files and usage
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} SuccessResponse{data=UserStats}
+// @Failure 401 {object} ErrorResponse
+// @Router /api/user/stats [get]
 func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.logger.Warning("Invalid method %s for user stats endpoint", r.Method)
@@ -562,7 +571,17 @@ func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Загрузка файла (доступна для всех)
+// @Summary Upload file
+// @Description Upload a file (images and videos). Available for both authenticated and anonymous users with rate limiting
+// @Tags files
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param file formData file true "File to upload"
+// @Success 200 {object} SuccessResponse{data=File}
+// @Failure 400 {object} ErrorResponse
+// @Failure 429 {object} ErrorResponse
+// @Router /api/upload [post]
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.logger.Warning("Invalid method %s for upload endpoint", r.Method)
@@ -586,7 +605,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		// Добавляем заголовки rate limit
 		w.Header().Set("X-RateLimit-Limit", "3")
 		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", 3-count))
 		s.logger.Info("Anonymous file upload started (usage: %d/3)", count)
@@ -594,7 +612,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		s.logger.Info("File upload started for user %d", userID)
 	}
 
-	// Парсим multipart форму
 	err := r.ParseMultipartForm(s.config.MaxFileSize)
 	if err != nil {
 		s.logger.Warning("Failed to parse multipart form: %v", err)
@@ -610,7 +627,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Валидация файла
 	if err := s.validator.ValidateFile(header); err != nil {
 		if ve, ok := err.(ValidationError); ok {
 			s.logger.Warning("File validation failed: %v", ve)
@@ -630,7 +646,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return fmt.Sprintf("for user %d", userID)
 		}())
 
-	// Генерируем уникальное имя файла
 	fileID := uuid.New().String()
 	ext := filepath.Ext(header.Filename)
 	fileName := fileID + ext
@@ -638,7 +653,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Debug("Saving file to: %s", filePath)
 
-	// Создаем файл на диске
 	dst, err := os.Create(filePath)
 	if err != nil {
 		s.logger.Error("Failed to create file %s: %v", filePath, err)
@@ -647,18 +661,16 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dst.Close()
 
-	// Копируем содержимое
 	size, err := io.Copy(dst, file)
 	if err != nil {
 		s.logger.Error("Failed to copy file content: %v", err)
-		os.Remove(filePath) // Удаляем частично созданный файл
+		os.Remove(filePath)
 		s.sendError(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
 
 	s.logger.Info("File saved to disk: %s (%d bytes)", filePath, size)
 
-	// Определяем MIME-тип более точно
 	mimeType := header.Header.Get("Content-Type")
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		switch strings.ToLower(ext) {
@@ -693,10 +705,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Создаем запись о файле
 	fileRecord := &File{
 		ID:           fileID,
-		UserID:       uint(userID), // 0 для анонимных пользователей
+		UserID:       uint(userID),
 		OriginalName: header.Filename,
 		FileName:     fileName,
 		FileSize:     size,
@@ -705,11 +716,10 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		UploadedAt:   time.Now(),
 	}
 
-	// Сохраняем в БД только для авторизованных пользователей
 	if !isAnonymous {
 		if err := s.db.CreateFile(fileRecord); err != nil {
 			s.logger.Error("Failed to save file record for user %d: %v", userID, err)
-			os.Remove(filePath) // Удаляем файл при ошибке БД
+			os.Remove(filePath)
 			s.sendError(w, "Failed to save file record", http.StatusInternalServerError)
 			return
 		}
@@ -729,7 +739,14 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Получение списка файлов пользователя (только для авторизованных)
+// @Summary Get user files
+// @Description Get list of all files uploaded by the authenticated user
+// @Tags files
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} SuccessResponse{data=[]File}
+// @Failure 401 {object} ErrorResponse
+// @Router /api/files [get]
 func (s *Server) handleGetFiles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.logger.Warning("Invalid method %s for get files endpoint", r.Method)
@@ -761,9 +778,18 @@ func (s *Server) handleGetFiles(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Действия с файлами (получение, удаление)
+// @Summary File operations
+// @Description Handle file operations (GET for download, DELETE for removal)
+// @Tags files
+// @Param id path string true "File ID"
+// @Security BearerAuth
+// @Success 200 {file} binary "File download"
+// @Success 200 {object} SuccessResponse "File deleted"
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/files/{id} [get]
+// @Router /api/files/{id} [delete]
 func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
-	// Извлекаем ID файла из URL
 	path := strings.TrimPrefix(r.URL.Path, "/api/files/")
 	fileID := strings.Split(path, "/")[0]
 
@@ -799,8 +825,7 @@ func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
 // Скачивание файла по ID
 func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool) {
 	if isAnonymous {
-		// Для анонимных пользователей просто проверяем существование файла на диске
-		fileName := fileID + "*" // Ищем файл с любым расширением
+		fileName := fileID + "*"
 		matches, err := filepath.Glob(filepath.Join(s.config.UploadPath, fileName))
 		if err != nil || len(matches) == 0 {
 			s.logger.Warning("Anonymous file not found on disk: %s", fileID)
@@ -811,7 +836,6 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 		filePath := matches[0]
 		s.logger.Info("Serving anonymous file: %s", fileID)
 		
-		// Определяем MIME-тип по расширению
 		ext := strings.ToLower(filepath.Ext(filePath))
 		var mimeType string
 		switch ext {
@@ -838,7 +862,6 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Для авторизованных пользователей проверяем БД
 	file, err := s.db.GetFileByID(fileID)
 	if err != nil {
 		s.logger.Warning("File not found in database: %s for user %d", fileID, userID)
@@ -846,7 +869,6 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Проверяем, что файл принадлежит пользователю
 	if file.UserID != uint(userID) {
 		s.logger.Warning("Access denied: user %d tried to access file %s owned by user %d", userID, fileID, file.UserID)
 		s.sendError(w, "Access denied", http.StatusForbidden)
@@ -859,13 +881,11 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 // Удаление файла по ID
 func (s *Server) handleDeleteFileByID(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool) {
 	if isAnonymous {
-		// Анонимные пользователи не могут удалять файлы
 		s.logger.Warning("Anonymous user attempted to delete file: %s", fileID)
 		s.sendError(w, "Anonymous users cannot delete files", http.StatusForbidden)
 		return
 	}
 
-	// Для авторизованных пользователей
 	file, err := s.db.GetFileByID(fileID)
 	if err != nil {
 		s.logger.Warning("File not found for deletion: %s for user %d", fileID, userID)
@@ -873,7 +893,6 @@ func (s *Server) handleDeleteFileByID(w http.ResponseWriter, r *http.Request, fi
 		return
 	}
 
-	// Проверяем, что файл принадлежит пользователю
 	if file.UserID != uint(userID) {
 		s.logger.Warning("Access denied: user %d tried to delete file %s owned by user %d", userID, fileID, file.UserID)
 		s.sendError(w, "Access denied", http.StatusForbidden)
@@ -906,7 +925,6 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, file *File) {
 	s.logger.Info("Deleting file: %s (%s) for user %d", file.OriginalName, file.ID, file.UserID)
 
-	// Удаляем файл с диска
 	filePath := filepath.Join(s.config.UploadPath, file.FileName)
 	if err := os.Remove(filePath); err != nil {
 		s.logger.Warning("Failed to remove file from disk: %s - %v", filePath, err)
@@ -914,7 +932,6 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, file *
 		s.logger.Debug("File removed from disk: %s", filePath)
 	}
 
-	// Удаляем запись из БД
 	if err := s.db.DeleteFile(file.ID); err != nil {
 		s.logger.Error("Failed to delete file record %s: %v", file.ID, err)
 		s.sendError(w, "Failed to delete file", http.StatusInternalServerError)
@@ -928,11 +945,38 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, file *
 	})
 }
 
+// @Summary Admin statistics
+// @Description Get administrative statistics about server, file system and rate limiter
+// @Tags admin
+// @Produce json
+// @Success 200 {object} SuccessResponse
+// @Router /api/admin/stats [get]
+func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	fileStats, _ := s.fileCleaner.GetStats()
+	rateLimiterStats := s.rateLimiter.GetStats()
+
+	stats := map[string]interface{}{
+		"server_uptime":  time.Since(time.Now().Add(-time.Hour)),
+		"file_system":    fileStats,
+		"rate_limiter":   rateLimiterStats,
+	}
+
+	s.sendJSON(w, SuccessResponse{
+		Message: "Admin stats retrieved",
+		Data:    stats,
+	})
+}
+
 // Генерация JWT токена
 func (s *Server) generateJWT(userID uint) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 дней
+		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(),
 	})
 
 	return token.SignedString([]byte(s.config.JWTSecret))

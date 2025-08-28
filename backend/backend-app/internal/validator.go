@@ -60,16 +60,6 @@ func NewValidator(maxFileSize int64) *Validator {
 	}
 }
 
-// ValidationError ошибка валидации
-type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
-}
-
-func (e ValidationError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Field, e.Message)
-}
-
 // ValidateEmail проверяет корректность email
 func (v *Validator) ValidateEmail(email string) error {
 	if email == "" {

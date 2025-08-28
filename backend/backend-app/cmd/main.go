@@ -11,7 +11,24 @@ import (
 
 	"obscura.app/internal"
 	"obscura.app/pkg/logger"
+	
+	// Импорт сгенерированной документации - добавить после генерации
+	_ "obscura.app/docs"
 )
+
+// @title Obscura API
+// @version 1.0
+// @description File upload and management API
+
+// @contact.name API Support
+// @contact.email yagadanaga@ya.ru
+
+// @host localhost:8080
+// @BasePath /api
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 	// Создаем логгер

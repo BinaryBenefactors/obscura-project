@@ -12,9 +12,9 @@ services:
       - JWT_SECRET=your-secret-key-change-in-production
       - UPLOAD_PATH=/app/uploads
       - MAX_FILE_SIZE=52428800  # 50MB
-      # - ML_SERVICE_URL=http://ml:5000
+      - ML_SERVICE_URL=http://ml:5000
       - ML_SERVICE_TIMEOUT=300  # 5 minutes
-      - ML_SERVICE_ENABLED=true
+      - ML_SERVICE_ENABLED=false
     volumes:
       - uploads:/app/uploads
     ports:

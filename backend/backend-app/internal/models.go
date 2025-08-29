@@ -19,31 +19,69 @@ type User struct {
 }
 
 // File модель загруженного файла  
-// @Description Uploaded file information
+// @Description Uploaded file information with processing status
 type File struct {
-	ID           string    `json:"id" gorm:"primarykey" example:"550e8400-e29b-41d4-a716-446655440000"`
-	UserID       uint      `json:"user_id" gorm:"not null" example:"1"`
-	OriginalName string    `json:"original_name" gorm:"not null" example:"photo.jpg"`
-	FileName     string    `json:"file_name" gorm:"not null" example:"550e8400-e29b-41d4-a716-446655440000.jpg"`
-	FileSize     int64     `json:"file_size" gorm:"not null" example:"1048576"`
-	MimeType     string    `json:"mime_type" gorm:"not null" example:"image/jpeg"`
-	Status       string    `json:"status" gorm:"default:'uploaded'" example:"uploaded" enums:"uploaded,processing,completed,failed"`
-	UploadedAt   time.Time `json:"uploaded_at" example:"2024-01-15T09:00:00Z"`
-	User         User      `json:"-" gorm:"foreignKey:UserID"`
+	ID            string    `json:"id" gorm:"primarykey" example:"550e8400-e29b-41d4-a716-446655440000"`
+	UserID        uint      `json:"user_id" gorm:"not null" example:"1"`
+	OriginalName  string    `json:"original_name" gorm:"not null" example:"photo.jpg"`
+	FileName      string    `json:"file_name" gorm:"not null" example:"550e8400-e29b-41d4-a716-446655440000.jpg"`
+	ProcessedName string    `json:"processed_name,omitempty" gorm:"" example:"550e8400-e29b-41d4-a716-446655440000_processed.jpg"`
+	FileSize      int64     `json:"file_size" gorm:"not null" example:"1048576"`
+	ProcessedSize int64     `json:"processed_size,omitempty" gorm:"" example:"1048576"`
+	MimeType      string    `json:"mime_type" gorm:"not null" example:"image/jpeg"`
+	Status        string    `json:"status" gorm:"default:'uploaded'" example:"uploaded" enums:"uploaded,processing,completed,failed"`
+	ErrorMessage  string    `json:"error_message,omitempty" gorm:"" example:"Processing failed: invalid format"`
+	UploadedAt    time.Time `json:"uploaded_at" example:"2024-01-15T09:00:00Z"`
+	ProcessedAt   time.Time `json:"processed_at,omitempty" example:"2024-01-15T09:05:00Z"`
+	User          User      `json:"-" gorm:"foreignKey:UserID"`
 }
 
 // UserStats статистика пользователя
 // @Description User statistics and usage information
 type UserStats struct {
-	TotalFiles        int                `json:"total_files" example:"25"`
-	TotalSize         int64              `json:"total_size" example:"52428800"`
-	TotalSizeMB       float64            `json:"total_size_mb" example:"50.0"`
-	UploadedToday     int                `json:"uploaded_today" example:"3"`
-	UploadedThisWeek  int                `json:"uploaded_this_week" example:"8"`
-	UploadedThisMonth int                `json:"uploaded_this_month" example:"15"`
-	FilesByStatus     map[string]int     `json:"files_by_status" example:"uploaded:20,completed:5"`
-	FilesByType       map[string]int     `json:"files_by_type" example:"image:15,video:10"`
-	RecentFiles       []File             `json:"recent_files"`
+	TotalFiles          int                `json:"total_files" example:"25"`
+	TotalSize           int64              `json:"total_size" example:"52428800"`
+	TotalSizeMB         float64            `json:"total_size_mb" example:"50.0"`
+	ProcessedFiles      int                `json:"processed_files" example:"20"`
+	ProcessingFiles     int                `json:"processing_files" example:"2"`
+	FailedFiles         int                `json:"failed_files" example:"3"`
+	UploadedToday       int                `json:"uploaded_today" example:"3"`
+	UploadedThisWeek    int                `json:"uploaded_this_week" example:"8"`
+	UploadedThisMonth   int                `json:"uploaded_this_month" example:"15"`
+	ProcessedToday      int                `json:"processed_today" example:"2"`
+	ProcessedThisWeek   int                `json:"processed_this_week" example:"7"`
+	ProcessedThisMonth  int                `json:"processed_this_month" example:"12"`
+	FilesByStatus       map[string]int     `json:"files_by_status" example:"uploaded:2,processing:2,completed:20,failed:1"`
+	FilesByType         map[string]int     `json:"files_by_type" example:"image:15,video:10"`
+	RecentFiles         []File             `json:"recent_files"`
+}
+
+// ProcessingRequest запрос на обработку файла ML-сервисом
+// @Description ML processing request
+type ProcessingRequest struct {
+	FileID     string            `json:"file_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FilePath   string            `json:"file_path" example:"/uploads/550e8400-e29b-41d4-a716-446655440000.jpg"`
+	MimeType   string            `json:"mime_type" example:"image/jpeg"`
+	Options    ProcessingOptions `json:"options"`
+}
+
+// ProcessingOptions опции обработки файла
+// @Description File processing options
+type ProcessingOptions struct {
+	BlurType    string   `json:"blur_type" example:"gaussian" enums:"gaussian,motion,pixelate"`
+	Intensity   int      `json:"intensity" example:"5"`
+	ObjectTypes []string `json:"object_types" example:"face,person,car"`
+}
+
+// ProcessingResponse ответ ML-сервиса
+// @Description ML processing response
+type ProcessingResponse struct {
+	Success        bool     `json:"success" example:"true"`
+	ProcessedPath  string   `json:"processed_path,omitempty" example:"/uploads/550e8400-e29b-41d4-a716-446655440000_processed.jpg"`
+	ProcessedSize  int64    `json:"processed_size,omitempty" example:"1048576"`
+	ObjectsFound   []string `json:"objects_found,omitempty" example:"face,person"`
+	ProcessingTime int      `json:"processing_time_ms,omitempty" example:"2500"`
+	ErrorMessage   string   `json:"error_message,omitempty" example:"Failed to detect objects"`
 }
 
 // RegisterRequest запрос регистрации
@@ -114,6 +152,16 @@ func (u *User) HashPassword() error {
 func (u *User) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
 	return err == nil
+}
+
+// IsProcessed проверяет, обработан ли файл
+func (f *File) IsProcessed() bool {
+	return f.Status == StatusCompleted && f.ProcessedName != ""
+}
+
+// CanBeProcessed проверяет, может ли файл быть обработан
+func (f *File) CanBeProcessed() bool {
+	return f.Status == StatusUploaded || f.Status == StatusFailed
 }
 
 // Статусы файлов

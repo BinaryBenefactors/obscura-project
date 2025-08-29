@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -72,6 +73,8 @@ func (s *Server) SetupRoutes() {
 	
 	// Действия с файлами
 	s.router.HandleFunc("/api/files/", s.corsMiddleware(s.optionalAuthMiddleware(s.handleFileActions)))
+	
+
 	
 	// Статистика для профиля
 	s.router.HandleFunc("/api/user/stats", s.corsMiddleware(s.authMiddleware(s.handleUserStats)))
@@ -233,7 +236,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Health check
-// @Description Check system health including database connection and file system stats
+// @Description Check system health including database connection, ML service and file system stats
 // @Tags system
 // @Produce json
 // @Success 200 {object} map[string]interface{}
@@ -264,11 +267,22 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	rateLimiterStats := s.rateLimiter.GetStats()
 
+	// Проверка ML сервиса
+	mlStatus := "disabled"
+	if s.config.MLServiceEnabled {
+		if s.checkMLService() {
+			mlStatus = "healthy"
+		} else {
+			mlStatus = "unhealthy"
+		}
+	}
+
 	health := map[string]interface{}{
 		"status":       "healthy",
 		"timestamp":    time.Now(),
 		"version":      "1.0.0",
 		"database":     "connected",
+		"ml_service":   mlStatus,
 		"file_system":  fileStats,
 		"rate_limiter": rateLimiterStats,
 	}
@@ -533,7 +547,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user statistics
-// @Description Get detailed statistics about user's files and usage
+// @Description Get detailed statistics about user's files, uploads and processing status
 // @Tags user
 // @Produce json
 // @Security BearerAuth
@@ -571,14 +585,17 @@ func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Upload file
-// @Description Upload a file (images and videos). Available for both authenticated and anonymous users with rate limiting
+// @Summary Upload and process file
+// @Description Upload a file (images and videos) and automatically send it for ML processing. Available for both authenticated and anonymous users with rate limiting
 // @Tags files
 // @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
 // @Param file formData file true "File to upload"
-// @Success 200 {object} SuccessResponse{data=File}
+// @Param blur_type formData string false "Type of blur to apply" Enums(gaussian, motion, pixelate) default(gaussian)
+// @Param intensity formData integer false "Effect intensity (1-10)" minimum(1) maximum(10) default(5)
+// @Param object_types formData string false "Comma-separated list of objects to blur" example("face,person,car")
+// @Success 200 {object} SuccessResponse{data=File} "File uploaded and processing started"
 // @Failure 400 {object} ErrorResponse
 // @Failure 429 {object} ErrorResponse
 // @Router /api/upload [post]
@@ -638,6 +655,9 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Парсим опции обработки
+	options := s.parseProcessingOptions(r)
+
 	s.logger.Info("Processing file upload: %s (%d bytes) %s", header.Filename, header.Size, 
 		func() string {
 			if isAnonymous {
@@ -671,39 +691,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("File saved to disk: %s (%d bytes)", filePath, size)
 
-	mimeType := header.Header.Get("Content-Type")
-	if mimeType == "" || mimeType == "application/octet-stream" {
-		switch strings.ToLower(ext) {
-		case ".jpg", ".jpeg":
-			mimeType = "image/jpeg"
-		case ".png":
-			mimeType = "image/png"
-		case ".gif":
-			mimeType = "image/gif"
-		case ".webp":
-			mimeType = "image/webp"
-		case ".bmp":
-			mimeType = "image/bmp"
-		case ".tiff", ".tif":
-			mimeType = "image/tiff"
-		case ".mp4":
-			mimeType = "video/mp4"
-		case ".avi":
-			mimeType = "video/avi"
-		case ".mov":
-			mimeType = "video/quicktime"
-		case ".wmv":
-			mimeType = "video/x-ms-wmv"
-		case ".flv":
-			mimeType = "video/x-flv"
-		case ".webm":
-			mimeType = "video/webm"
-		case ".mkv":
-			mimeType = "video/x-matroska"
-		default:
-			mimeType = "application/octet-stream"
-		}
-	}
+	mimeType := s.determineMimeType(header, ext)
 
 	fileRecord := &File{
 		ID:           fileID,
@@ -728,19 +716,28 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		s.logger.Info("Anonymous file upload completed: %s (ID: %s) - not saved to history", header.Filename, fileID)
 	}
 
+	// Запускаем обработку файла в фоне
+	go s.processFileAsync(fileID, filePath, mimeType, options, isAnonymous)
+
+	// Обновляем статус на "processing" если это не анонимный пользователь
+	if !isAnonymous {
+		s.db.UpdateFileStatus(fileID, StatusProcessing)
+		fileRecord.Status = StatusProcessing
+	}
+
 	s.sendJSON(w, SuccessResponse{
 		Message: func() string {
 			if isAnonymous {
-				return "File uploaded successfully (not saved to history)"
+				return "File uploaded successfully and processing started (not saved to history)"
 			}
-			return "File uploaded successfully"
+			return "File uploaded successfully and processing started"
 		}(),
 		Data: fileRecord,
 	})
 }
 
 // @Summary Get user files
-// @Description Get list of all files uploaded by the authenticated user
+// @Description Get list of all files uploaded by the authenticated user with their processing status
 // @Tags files
 // @Produce json
 // @Security BearerAuth
@@ -779,11 +776,13 @@ func (s *Server) handleGetFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary File operations
-// @Description Handle file operations (GET for download, DELETE for removal)
+// @Description Handle file operations: GET for file info/download, DELETE for removal. Use ?type=original or ?type=processed query parameter for downloads
 // @Tags files
 // @Param id path string true "File ID"
+// @Param type query string false "Download type" Enums(original, processed)
 // @Security BearerAuth
-// @Success 200 {file} binary "File download"
+// @Success 200 {object} SuccessResponse{data=File} "File information"
+// @Success 200 {file} binary "File download (when type parameter is used)"
 // @Success 200 {object} SuccessResponse "File deleted"
 // @Failure 403 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -803,17 +802,26 @@ func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
 	userID, _ := strconv.Atoi(userIDStr)
 	isAnonymous := userID == 0
 
-	s.logger.Debug("File action %s for file %s by %s", r.Method, fileID, 
+	// Получаем query parameter type для определения типа операции
+	downloadType := r.URL.Query().Get("type")
+
+	s.logger.Debug("File action %s for file %s by %s (type: %s)", r.Method, fileID, 
 		func() string {
 			if isAnonymous {
 				return "anonymous user"
 			}
 			return fmt.Sprintf("user %d", userID)
-		}())
+		}(), downloadType)
 
 	switch r.Method {
 	case http.MethodGet:
-		s.handleDownloadFileByID(w, r, fileID, userID, isAnonymous)
+		if downloadType == "original" || downloadType == "processed" {
+			// Скачивание файла
+			s.handleDownloadFileByID(w, r, fileID, userID, isAnonymous, downloadType == "processed")
+		} else {
+			// Получение информации о файле
+			s.handleGetFileInfo(w, r, fileID, userID, isAnonymous)
+		}
 	case http.MethodDelete:
 		s.handleDeleteFileByID(w, r, fileID, userID, isAnonymous)
 	default:
@@ -822,10 +830,15 @@ func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+
+
 // Скачивание файла по ID
-func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool) {
+func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool, isProcessed bool) {
 	if isAnonymous {
 		fileName := fileID + "*"
+		if isProcessed {
+			fileName = fileID + "_processed*"
+		}
 		matches, err := filepath.Glob(filepath.Join(s.config.UploadPath, fileName))
 		if err != nil || len(matches) == 0 {
 			s.logger.Warning("Anonymous file not found on disk: %s", fileID)
@@ -834,29 +847,9 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 		}
 		
 		filePath := matches[0]
-		s.logger.Info("Serving anonymous file: %s", fileID)
+		s.logger.Info("Serving anonymous file: %s (processed: %v)", fileID, isProcessed)
 		
-		ext := strings.ToLower(filepath.Ext(filePath))
-		var mimeType string
-		switch ext {
-		case ".jpg", ".jpeg":
-			mimeType = "image/jpeg"
-		case ".png":
-			mimeType = "image/png"
-		case ".gif":
-			mimeType = "image/gif"
-		case ".mp4":
-			mimeType = "video/mp4"
-		case ".avi":
-			mimeType = "video/avi"
-		case ".mov":
-			mimeType = "video/quicktime"
-		case ".webm":
-			mimeType = "video/webm"
-		default:
-			mimeType = "application/octet-stream"
-		}
-		
+		mimeType := s.determineMimeTypeFromPath(filePath)
 		w.Header().Set("Content-Type", mimeType)
 		http.ServeFile(w, r, filePath)
 		return
@@ -875,7 +868,31 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	s.handleDownloadFile(w, r, file)
+	s.handleDownloadFile(w, r, file, isProcessed)
+}
+
+// Получение информации о файле
+func (s *Server) handleGetFileInfo(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool) {
+	if isAnonymous {
+		s.sendError(w, "File info not available for anonymous users", http.StatusForbidden)
+		return
+	}
+
+	file, err := s.db.GetFileByID(fileID)
+	if err != nil {
+		s.sendError(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if file.UserID != uint(userID) {
+		s.sendError(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	s.sendJSON(w, SuccessResponse{
+		Message: "File info retrieved",
+		Data:    file,
+	})
 }
 
 // Удаление файла по ID
@@ -902,11 +919,24 @@ func (s *Server) handleDeleteFileByID(w http.ResponseWriter, r *http.Request, fi
 	s.handleDeleteFile(w, r, file)
 }
 
-// Скачивание файла
-func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file *File) {
-	filePath := filepath.Join(s.config.UploadPath, file.FileName)
 
-	s.logger.Debug("Downloading file: %s (path: %s)", file.ID, filePath)
+
+
+
+// Скачивание файла
+func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file *File, isProcessed bool) {
+	var filePath string
+	var fileName string
+
+	if isProcessed && file.IsProcessed() {
+		filePath = filepath.Join(s.config.UploadPath, file.ProcessedName)
+		fileName = "processed_" + file.OriginalName
+	} else {
+		filePath = filepath.Join(s.config.UploadPath, file.FileName)
+		fileName = file.OriginalName
+	}
+
+	s.logger.Debug("Downloading file: %s (path: %s, processed: %v)", file.ID, filePath, isProcessed)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		s.logger.Error("File not found on disk: %s", filePath)
@@ -914,10 +944,10 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file
 		return
 	}
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", file.OriginalName))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
 	w.Header().Set("Content-Type", file.MimeType)
 
-	s.logger.Info("Serving file: %s (%s) to user %d", file.OriginalName, file.ID, file.UserID)
+	s.logger.Info("Serving file: %s (%s) to user %d (processed: %v)", fileName, file.ID, file.UserID, isProcessed)
 	http.ServeFile(w, r, filePath)
 }
 
@@ -925,11 +955,22 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, file *File) {
 	s.logger.Info("Deleting file: %s (%s) for user %d", file.OriginalName, file.ID, file.UserID)
 
+	// Удаляем оригинальный файл
 	filePath := filepath.Join(s.config.UploadPath, file.FileName)
 	if err := os.Remove(filePath); err != nil {
-		s.logger.Warning("Failed to remove file from disk: %s - %v", filePath, err)
+		s.logger.Warning("Failed to remove original file from disk: %s - %v", filePath, err)
 	} else {
-		s.logger.Debug("File removed from disk: %s", filePath)
+		s.logger.Debug("Original file removed from disk: %s", filePath)
+	}
+
+	// Удаляем обработанный файл, если он есть
+	if file.ProcessedName != "" {
+		processedPath := filepath.Join(s.config.UploadPath, file.ProcessedName)
+		if err := os.Remove(processedPath); err != nil {
+			s.logger.Warning("Failed to remove processed file from disk: %s - %v", processedPath, err)
+		} else {
+			s.logger.Debug("Processed file removed from disk: %s", processedPath)
+		}
 	}
 
 	if err := s.db.DeleteFile(file.ID); err != nil {
@@ -946,7 +987,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request, file *
 }
 
 // @Summary Admin statistics
-// @Description Get administrative statistics about server, file system and rate limiter
+// @Description Get administrative statistics about server, file system, ML service and rate limiter
 // @Tags admin
 // @Produce json
 // @Success 200 {object} SuccessResponse
@@ -960,16 +1001,219 @@ func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 	fileStats, _ := s.fileCleaner.GetStats()
 	rateLimiterStats := s.rateLimiter.GetStats()
 
+	// Статистика обработки файлов
+	processingStats := make(map[string]interface{})
+	if uploadedFiles, err := s.db.GetFilesByStatus(StatusUploaded); err == nil {
+		processingStats["pending_files"] = len(uploadedFiles)
+	}
+	if processingFiles, err := s.db.GetFilesByStatus(StatusProcessing); err == nil {
+		processingStats["processing_files"] = len(processingFiles)
+	}
+	if completedFiles, err := s.db.GetFilesByStatus(StatusCompleted); err == nil {
+		processingStats["completed_files"] = len(completedFiles)
+	}
+	if failedFiles, err := s.db.GetFilesByStatus(StatusFailed); err == nil {
+		processingStats["failed_files"] = len(failedFiles)
+	}
+
 	stats := map[string]interface{}{
-		"server_uptime":  time.Since(time.Now().Add(-time.Hour)),
-		"file_system":    fileStats,
-		"rate_limiter":   rateLimiterStats,
+		"server_uptime":    time.Since(time.Now().Add(-time.Hour)),
+		"file_system":      fileStats,
+		"rate_limiter":     rateLimiterStats,
+		"processing_stats": processingStats,
+		"ml_service": map[string]interface{}{
+			"enabled": s.config.MLServiceEnabled,
+			"url":     s.config.MLServiceURL,
+			"healthy": s.checkMLService(),
+		},
 	}
 
 	s.sendJSON(w, SuccessResponse{
 		Message: "Admin stats retrieved",
 		Data:    stats,
 	})
+}
+
+// Парсинг опций обработки из формы
+func (s *Server) parseProcessingOptions(r *http.Request) ProcessingOptions {
+	options := ProcessingOptions{
+		BlurType:  "gaussian",
+		Intensity: 5,
+	}
+
+	if blurType := r.FormValue("blur_type"); blurType != "" {
+		options.BlurType = blurType
+	}
+
+	if intensity := r.FormValue("intensity"); intensity != "" {
+		if intVal, err := strconv.Atoi(intensity); err == nil && intVal >= 1 && intVal <= 10 {
+			options.Intensity = intVal
+		}
+	}
+
+	if objectTypes := r.FormValue("object_types"); objectTypes != "" {
+		options.ObjectTypes = strings.Split(objectTypes, ",")
+		for i, obj := range options.ObjectTypes {
+			options.ObjectTypes[i] = strings.TrimSpace(obj)
+		}
+	}
+
+	return options
+}
+
+// Определение MIME типа
+func (s *Server) determineMimeType(header *multipart.FileHeader, ext string) string {
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = s.determineMimeTypeFromExtension(ext)
+	}
+	return mimeType
+}
+
+// Определение MIME типа по расширению
+func (s *Server) determineMimeTypeFromExtension(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".bmp":
+		return "image/bmp"
+	case ".tiff", ".tif":
+		return "image/tiff"
+	case ".mp4":
+		return "video/mp4"
+	case ".avi":
+		return "video/avi"
+	case ".mov":
+		return "video/quicktime"
+	case ".wmv":
+		return "video/x-ms-wmv"
+	case ".flv":
+		return "video/x-flv"
+	case ".webm":
+		return "video/webm"
+	case ".mkv":
+		return "video/x-matroska"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// Определение MIME типа по пути
+func (s *Server) determineMimeTypeFromPath(filePath string) string {
+	ext := filepath.Ext(filePath)
+	return s.determineMimeTypeFromExtension(ext)
+}
+
+// Асинхронная обработка файла (эмуляция ML)
+func (s *Server) processFileAsync(fileID, filePath, mimeType string, options ProcessingOptions, isAnonymous bool) {
+	s.logger.Info("Starting processing for file %s (anonymous: %v)", fileID, isAnonymous)
+
+	if s.config.MLServiceEnabled {
+		// Когда ML будет готов, здесь будет реальный вызов сервиса
+		s.processWithMLService(fileID, filePath, mimeType, options, isAnonymous)
+	} else {
+		// Эмуляция обработки
+		s.processWithEmulation(fileID, filePath, mimeType, options, isAnonymous)
+	}
+}
+
+// Эмуляция обработки файла
+func (s *Server) processWithEmulation(fileID, filePath, mimeType string, options ProcessingOptions, isAnonymous bool) {
+	s.logger.Debug("Emulating ML processing for file %s", fileID)
+
+	// Эмитируем время обработки (2-5 секунд)
+	processingTime := time.Duration(2+time.Now().UnixNano()%3) * time.Second
+	time.Sleep(processingTime)
+
+	// Создаем "обработанный" файл (копируем оригинал)
+	ext := filepath.Ext(filePath)
+	processedName := fileID + "_processed" + ext
+	processedPath := filepath.Join(s.config.UploadPath, processedName)
+
+	// Копируем файл
+	if err := s.copyFile(filePath, processedPath); err != nil {
+		s.logger.Error("Failed to create processed file %s: %v", processedPath, err)
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, "Failed to create processed file")
+		}
+		return
+	}
+
+	// Получаем размер обработанного файла
+	processedSize := int64(0)
+	if stat, err := os.Stat(processedPath); err == nil {
+		processedSize = stat.Size()
+	}
+
+	if !isAnonymous {
+		err := s.db.UpdateFileProcessing(fileID, processedName, processedSize, StatusCompleted, "")
+		if err != nil {
+			s.logger.Error("Failed to update file processing status for %s: %v", fileID, err)
+		} else {
+			s.logger.Info("File processing completed successfully: %s", fileID)
+		}
+	} else {
+		s.logger.Info("Anonymous file processing completed: %s", fileID)
+	}
+}
+
+// Обработка с помощью ML сервиса (заглушка для будущего)
+func (s *Server) processWithMLService(fileID, filePath, mimeType string, options ProcessingOptions, isAnonymous bool) {
+	s.logger.Debug("Processing file %s with ML service", fileID)
+
+	// Подготавливаем запрос к ML сервису
+	request := ProcessingRequest{
+		FileID:   fileID,
+		FilePath: filePath,
+		MimeType: mimeType,
+		Options:  options,
+	}
+
+	// TODO: Когда ML будет готов, здесь будет реальный HTTP запрос
+	_ = request
+
+	// Пока эмулируем
+	s.processWithEmulation(fileID, filePath, mimeType, options, isAnonymous)
+}
+
+// Проверка доступности ML сервиса
+func (s *Server) checkMLService() bool {
+	if !s.config.MLServiceEnabled {
+		return false
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(s.config.MLServiceURL + "/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
+}
+
+// Копирование файла
+func (s *Server) copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
 
 // Генерация JWT токена

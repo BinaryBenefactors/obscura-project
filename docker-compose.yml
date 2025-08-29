@@ -13,6 +13,8 @@ services:
       - UPLOAD_PATH=/app/uploads
       - MAX_FILE_SIZE=52428800  # 50MB
       # - ML_SERVICE_URL=http://ml:5000
+      - ML_SERVICE_TIMEOUT=300  # 5 minutes
+      - ML_SERVICE_ENABLED=true
     volumes:
       - uploads:/app/uploads
     ports:
@@ -28,12 +30,15 @@ services:
   #   build: ./backend/ml
   #   environment:
   #     - MODEL_PATH=/models/your_model
+  #     - UPLOAD_PATH=/app/uploads
   #   volumes:
-  #     - models:/models# Прокси для Swagger UI через API
+  #     - uploads:/app/uploads  # Общая папка с backend для доступа к файлам
+  #     - models:/models
   #   ports:
   #     - "5000:5000"
   #   networks:
   #     - app-network
+  #   restart: unless-stopped
 
   frontend:
     build: 
@@ -79,6 +84,7 @@ services:
 volumes:
   uploads:
   postgres_data:
+  models:  # Добавлен volume для ML моделей
 
 networks:
   app-network:

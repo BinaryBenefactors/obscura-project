@@ -17,8 +17,11 @@ definitions:
         type: string
     type: object
   internal.File:
-    description: Uploaded file information
+    description: Uploaded file information with processing status
     properties:
+      error_message:
+        example: 'Processing failed: invalid format'
+        type: string
       file_name:
         example: 550e8400-e29b-41d4-a716-446655440000.jpg
         type: string
@@ -34,6 +37,15 @@ definitions:
       original_name:
         example: photo.jpg
         type: string
+      processed_at:
+        example: "2024-01-15T09:05:00Z"
+        type: string
+      processed_name:
+        example: 550e8400-e29b-41d4-a716-446655440000_processed.jpg
+        type: string
+      processed_size:
+        example: 1048576
+        type: integer
       status:
         enum:
         - uploaded
@@ -130,12 +142,17 @@ definitions:
   internal.UserStats:
     description: User statistics and usage information
     properties:
+      failed_files:
+        example: 3
+        type: integer
       files_by_status:
         additionalProperties:
           type: integer
         example:
-          completed: 5
-          uploaded: 20
+          completed: 20
+          failed: 1
+          processing: 2
+          uploaded: 2
         type: object
       files_by_type:
         additionalProperties:
@@ -144,6 +161,21 @@ definitions:
           image: 15
           video: 10
         type: object
+      processed_files:
+        example: 20
+        type: integer
+      processed_this_month:
+        example: 12
+        type: integer
+      processed_this_week:
+        example: 7
+        type: integer
+      processed_today:
+        example: 2
+        type: integer
+      processing_files:
+        example: 2
+        type: integer
       recent_files:
         items:
           $ref: '#/definitions/internal.File'
@@ -172,7 +204,7 @@ info:
   contact:
     email: yagadanaga@ya.ru
     name: API Support
-  description: File upload and management API
+  description: Advanced file upload and ML processing API for image and video blurring
   title: Obscura API
   version: "1.0"
 paths:
@@ -193,8 +225,8 @@ paths:
       - system
   /api/admin/stats:
     get:
-      description: Get administrative statistics about server, file system and rate
-        limiter
+      description: Get administrative statistics about server, file system, ML service
+        and rate limiter
       produces:
       - application/json
       responses:
@@ -207,7 +239,8 @@ paths:
       - admin
   /api/files:
     get:
-      description: Get list of all files uploaded by the authenticated user
+      description: Get list of all files uploaded by the authenticated user with their
+        processing status
       produces:
       - application/json
       responses:
@@ -233,12 +266,20 @@ paths:
       - files
   /api/files/{id}:
     delete:
-      description: Handle file operations (GET for download, DELETE for removal)
+      description: 'Handle file operations: GET for file info/download, DELETE for
+        removal. Use ?type=original or ?type=processed query parameter for downloads'
       parameters:
       - description: File ID
         in: path
         name: id
         required: true
+        type: string
+      - description: Download type
+        enum:
+        - original
+        - processed
+        in: query
+        name: type
         type: string
       responses:
         "200":
@@ -259,12 +300,20 @@ paths:
       tags:
       - files
     get:
-      description: Handle file operations (GET for download, DELETE for removal)
+      description: 'Handle file operations: GET for file info/download, DELETE for
+        removal. Use ?type=original or ?type=processed query parameter for downloads'
       parameters:
       - description: File ID
         in: path
         name: id
         required: true
+        type: string
+      - description: Download type
+        enum:
+        - original
+        - processed
+        in: query
+        name: type
         type: string
       responses:
         "200":
@@ -344,19 +393,41 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Upload a file (images and videos). Available for both authenticated
-        and anonymous users with rate limiting
+      description: Upload a file (images and videos) and automatically send it for
+        ML processing. Available for both authenticated and anonymous users with rate
+        limiting
       parameters:
       - description: File to upload
         in: formData
         name: file
         required: true
         type: file
+      - default: gaussian
+        description: Type of blur to apply
+        enum:
+        - gaussian
+        - motion
+        - pixelate
+        in: formData
+        name: blur_type
+        type: string
+      - default: 5
+        description: Effect intensity (1-10)
+        in: formData
+        maximum: 10
+        minimum: 1
+        name: intensity
+        type: integer
+      - description: Comma-separated list of objects to blur
+        example: '"face,person,car"'
+        in: formData
+        name: object_types
+        type: string
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: File uploaded and processing started
           schema:
             allOf:
             - $ref: '#/definitions/internal.SuccessResponse'
@@ -374,7 +445,7 @@ paths:
             $ref: '#/definitions/internal.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Upload file
+      summary: Upload and process file
       tags:
       - files
   /api/user/profile:
@@ -436,7 +507,8 @@ paths:
       - user
   /api/user/stats:
     get:
-      description: Get detailed statistics about user's files and usage
+      description: Get detailed statistics about user's files, uploads and processing
+        status
       produces:
       - application/json
       responses:
@@ -460,8 +532,8 @@ paths:
       - user
   /health:
     get:
-      description: Check system health including database connection and file system
-        stats
+      description: Check system health including database connection, ML service and
+        file system stats
       produces:
       - application/json
       responses:
@@ -479,6 +551,7 @@ paths:
       - system
 securityDefinitions:
   BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token
     in: header
     name: Authorization
     type: apiKey

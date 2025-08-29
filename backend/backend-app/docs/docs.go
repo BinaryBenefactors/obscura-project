@@ -43,7 +43,7 @@ const docTemplate = `{
         },
         "/api/admin/stats": {
             "get": {
-                "description": "Get administrative statistics about server, file system and rate limiter",
+                "description": "Get administrative statistics about server, file system, ML service and rate limiter",
                 "produces": [
                     "application/json"
                 ],
@@ -68,7 +68,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get list of all files uploaded by the authenticated user",
+                "description": "Get list of all files uploaded by the authenticated user with their processing status",
                 "produces": [
                     "application/json"
                 ],
@@ -114,7 +114,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Handle file operations (GET for download, DELETE for removal)",
+                "description": "Handle file operations: GET for file info/download, DELETE for removal. Use ?type=original or ?type=processed query parameter for downloads",
                 "tags": [
                     "files"
                 ],
@@ -126,6 +126,16 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "original",
+                            "processed"
+                        ],
+                        "type": "string",
+                        "description": "Download type",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -155,7 +165,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Handle file operations (GET for download, DELETE for removal)",
+                "description": "Handle file operations: GET for file info/download, DELETE for removal. Use ?type=original or ?type=processed query parameter for downloads",
                 "tags": [
                     "files"
                 ],
@@ -167,6 +177,16 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "original",
+                            "processed"
+                        ],
+                        "type": "string",
+                        "description": "Download type",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -284,7 +304,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Upload a file (images and videos). Available for both authenticated and anonymous users with rate limiting",
+                "description": "Upload a file (images and videos) and automatically send it for ML processing. Available for both authenticated and anonymous users with rate limiting",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -294,7 +314,7 @@ const docTemplate = `{
                 "tags": [
                     "files"
                 ],
-                "summary": "Upload file",
+                "summary": "Upload and process file",
                 "parameters": [
                     {
                         "type": "file",
@@ -302,11 +322,39 @@ const docTemplate = `{
                         "name": "file",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "gaussian",
+                            "motion",
+                            "pixelate"
+                        ],
+                        "type": "string",
+                        "default": "gaussian",
+                        "description": "Type of blur to apply",
+                        "name": "blur_type",
+                        "in": "formData"
+                    },
+                    {
+                        "maximum": 10,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Effect intensity (1-10)",
+                        "name": "intensity",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"face,person,car\"",
+                        "description": "Comma-separated list of objects to blur",
+                        "name": "object_types",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "File uploaded and processing started",
                         "schema": {
                             "allOf": [
                                 {
@@ -445,7 +493,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Get detailed statistics about user's files and usage",
+                "description": "Get detailed statistics about user's files, uploads and processing status",
                 "produces": [
                     "application/json"
                 ],
@@ -483,7 +531,7 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Check system health including database connection and file system stats",
+                "description": "Check system health including database connection, ML service and file system stats",
                 "produces": [
                     "application/json"
                 ],
@@ -534,9 +582,13 @@ const docTemplate = `{
             }
         },
         "internal.File": {
-            "description": "Uploaded file information",
+            "description": "Uploaded file information with processing status",
             "type": "object",
             "properties": {
+                "error_message": {
+                    "type": "string",
+                    "example": "Processing failed: invalid format"
+                },
                 "file_name": {
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000.jpg"
@@ -556,6 +608,18 @@ const docTemplate = `{
                 "original_name": {
                     "type": "string",
                     "example": "photo.jpg"
+                },
+                "processed_at": {
+                    "type": "string",
+                    "example": "2024-01-15T09:05:00Z"
+                },
+                "processed_name": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000_processed.jpg"
+                },
+                "processed_size": {
+                    "type": "integer",
+                    "example": 1048576
                 },
                 "status": {
                     "type": "string",
@@ -685,14 +749,20 @@ const docTemplate = `{
             "description": "User statistics and usage information",
             "type": "object",
             "properties": {
+                "failed_files": {
+                    "type": "integer",
+                    "example": 3
+                },
                 "files_by_status": {
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
                     },
                     "example": {
-                        "completed": 5,
-                        "uploaded": 20
+                        "completed": 20,
+                        "failed": 1,
+                        "processing": 2,
+                        "uploaded": 2
                     }
                 },
                 "files_by_type": {
@@ -704,6 +774,26 @@ const docTemplate = `{
                         "image": 15,
                         "video": 10
                     }
+                },
+                "processed_files": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "processed_this_month": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "processed_this_week": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "processed_today": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "processing_files": {
+                    "type": "integer",
+                    "example": 2
                 },
                 "recent_files": {
                     "type": "array",
@@ -740,6 +830,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and JWT token",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -754,7 +845,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api",
 	Schemes:          []string{},
 	Title:            "Obscura API",
-	Description:      "File upload and management API",
+	Description:      "Advanced file upload and ML processing API for image and video blurring",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -80,14 +80,60 @@ func (d *Database) GetUserFiles(userID uint) ([]File, error) {
 }
 
 func (d *Database) UpdateFileStatus(id string, status string) error {
-	return d.DB.Model(&File{}).Where("id = ?", id).Update("status", status).Error
+	updates := map[string]interface{}{
+		"status": status,
+	}
+	
+	// Если статус "processing", обновляем время начала обработки
+	if status == StatusProcessing {
+		updates["processed_at"] = time.Now()
+	}
+	
+	return d.DB.Model(&File{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (d *Database) UpdateFileProcessing(id string, processedName string, processedSize int64, status string, errorMessage string) error {
+	updates := map[string]interface{}{
+		"status":       status,
+		"processed_at": time.Now(),
+	}
+	
+	if processedName != "" {
+		updates["processed_name"] = processedName
+	}
+	
+	if processedSize > 0 {
+		updates["processed_size"] = processedSize
+	}
+	
+	if errorMessage != "" {
+		updates["error_message"] = errorMessage
+	} else {
+		updates["error_message"] = "" // Очищаем предыдущие ошибки при успехе
+	}
+	
+	return d.DB.Model(&File{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (d *Database) GetFilesByStatus(status string) ([]File, error) {
+	var files []File
+	err := d.DB.Where("status = ?", status).Find(&files).Error
+	return files, err
+}
+
+func (d *Database) GetPendingFiles() ([]File, error) {
+	var files []File
+	err := d.DB.Where("status = ?", StatusUploaded).
+		Order("uploaded_at ASC").
+		Find(&files).Error
+	return files, err
 }
 
 func (d *Database) DeleteFile(id string) error {
 	return d.DB.Delete(&File{}, "id = ?", id).Error
 }
 
-// Получение статистики пользователя
+// Получение статистики пользователя с учетом обработки
 func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
 	var stats UserStats
 	
@@ -108,6 +154,17 @@ func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
 	stats.TotalSize = totalSize
 	stats.TotalSizeMB = float64(totalSize) / (1024 * 1024)
 	
+	// Статистика по статусам
+	var processedCount, processingCount, failedCount int64
+	
+	d.DB.Model(&File{}).Where("user_id = ? AND status = ?", userID, StatusCompleted).Count(&processedCount)
+	d.DB.Model(&File{}).Where("user_id = ? AND status = ?", userID, StatusProcessing).Count(&processingCount)
+	d.DB.Model(&File{}).Where("user_id = ? AND status = ?", userID, StatusFailed).Count(&failedCount)
+	
+	stats.ProcessedFiles = int(processedCount)
+	stats.ProcessingFiles = int(processingCount)
+	stats.FailedFiles = int(failedCount)
+	
 	// Файлы загруженные сегодня
 	today := time.Now().Truncate(24 * time.Hour)
 	var todayCount int64
@@ -115,9 +172,19 @@ func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
 		Where("user_id = ? AND uploaded_at >= ?", userID, today).
 		Count(&todayCount).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get today stats: %w", err)
+		return nil, fmt.Errorf("failed to get today upload stats: %w", err)
 	}
 	stats.UploadedToday = int(todayCount)
+	
+	// Файлы обработанные сегодня
+	var processedTodayCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND status = ? AND processed_at >= ?", userID, StatusCompleted, today).
+		Count(&processedTodayCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get today processing stats: %w", err)
+	}
+	stats.ProcessedToday = int(processedTodayCount)
 	
 	// Файлы загруженные на этой неделе
 	weekStart := today.AddDate(0, 0, -int(today.Weekday()))
@@ -126,9 +193,19 @@ func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
 		Where("user_id = ? AND uploaded_at >= ?", userID, weekStart).
 		Count(&weekCount).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get week stats: %w", err)
+		return nil, fmt.Errorf("failed to get week upload stats: %w", err)
 	}
 	stats.UploadedThisWeek = int(weekCount)
+	
+	// Файлы обработанные на этой неделе
+	var processedWeekCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND status = ? AND processed_at >= ?", userID, StatusCompleted, weekStart).
+		Count(&processedWeekCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get week processing stats: %w", err)
+	}
+	stats.ProcessedThisWeek = int(processedWeekCount)
 	
 	// Файлы загруженные в этом месяце
 	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location())
@@ -137,9 +214,19 @@ func (d *Database) GetUserStats(userID uint) (*UserStats, error) {
 		Where("user_id = ? AND uploaded_at >= ?", userID, monthStart).
 		Count(&monthCount).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get month stats: %w", err)
+		return nil, fmt.Errorf("failed to get month upload stats: %w", err)
 	}
 	stats.UploadedThisMonth = int(monthCount)
+	
+	// Файлы обработанные в этом месяце
+	var processedMonthCount int64
+	err = d.DB.Model(&File{}).
+		Where("user_id = ? AND status = ? AND processed_at >= ?", userID, StatusCompleted, monthStart).
+		Count(&processedMonthCount).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get month processing stats: %w", err)
+	}
+	stats.ProcessedThisMonth = int(processedMonthCount)
 	
 	// Статистика по статусам файлов
 	var statusStats []struct {

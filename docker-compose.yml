@@ -7,12 +7,14 @@ services:
       - DB_HOST=db
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_NAME=appdb  # Синхронизировано с POSTGRES_DB
+      - DB_NAME=appdb
       - DB_PORT=5432
       - JWT_SECRET=your-secret-key-change-in-production
       - UPLOAD_PATH=/app/uploads
       - MAX_FILE_SIZE=52428800  # 50MB
-      # - ML_SERVICE_URL=http://ml:5000
+      - ML_SERVICE_URL=http://ml:5000
+      - ML_SERVICE_TIMEOUT=300  # 5 minutes
+      - ML_SERVICE_ENABLED=false
     volumes:
       - uploads:/app/uploads
     ports:
@@ -24,36 +26,28 @@ services:
       - app-network
     restart: unless-stopped
 
-# backend-test:
-  #   build:
-  #     context: ./backend/backend-app
-  #     dockerfile: Dockerfile.test
-  #   environment:
-  #     - DB_HOST=db
-  #     - DB_USER=postgres
-  #     - DB_PASSWORD=postgres
-  #     - DB_NAME=obscura_test
-  #     - DB_PORT=5432
-  #   depends_on:
-  #     - db
-  #   networks:
-  #     - app-network
-
   # ml:
   #   build: ./backend/ml
   #   environment:
   #     - MODEL_PATH=/models/your_model
+  #     - UPLOAD_PATH=/app/uploads
   #   volumes:
+  #     - uploads:/app/uploads  # Общая папка с backend для доступа к файлам
   #     - models:/models
   #   ports:
   #     - "5000:5000"
   #   networks:
   #     - app-network
+  #   restart: unless-stopped
 
   frontend:
     build: 
       context: .
       dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
     networks:
       - app-network
 
@@ -82,7 +76,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # Для локального подключения при отладке
+      - "5432:5432"
     networks:
       - app-network
     restart: unless-stopped
@@ -90,6 +84,7 @@ services:
 volumes:
   uploads:
   postgres_data:
+  models:  # Добавлен volume для ML моделей
 
 networks:
   app-network:

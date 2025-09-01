@@ -10,9 +10,11 @@ import (
 
 // Validator структура для валидации данных
 type Validator struct {
-	maxFileSize      int64
-	allowedMimeTypes map[string]bool
+	maxFileSize       int64
+	allowedMimeTypes  map[string]bool
 	allowedExtensions map[string]bool
+	allowedBlurTypes  map[string]bool
+	allowedObjects    map[string]bool
 }
 
 // NewValidator создает новый валидатор
@@ -21,22 +23,22 @@ func NewValidator(maxFileSize int64) *Validator {
 		maxFileSize: maxFileSize,
 		allowedMimeTypes: map[string]bool{
 			// Изображения
-			"image/jpeg":    true,
-			"image/jpg":     true,
-			"image/png":     true,
-			"image/gif":     true,
-			"image/webp":    true,
-			"image/bmp":     true,
-			"image/tiff":    true,
+			"image/jpeg":       true,
+			"image/jpg":        true,
+			"image/png":        true,
+			"image/gif":        true,
+			"image/webp":       true,
+			"image/bmp":        true,
+			"image/tiff":       true,
 			// Видео
-			"video/mp4":     true,
-			"video/avi":     true,
-			"video/mov":     true,
-			"video/wmv":     true,
-			"video/flv":     true,
-			"video/webm":    true,
-			"video/mkv":     true,
-			"video/quicktime": true,
+			"video/mp4":        true,
+			"video/avi":        true,
+			"video/mov":        true,
+			"video/wmv":        true,
+			"video/flv":        true,
+			"video/webm":       true,
+			"video/mkv":        true,
+			"video/quicktime":  true,
 		},
 		allowedExtensions: map[string]bool{
 			// Изображения
@@ -57,17 +59,20 @@ func NewValidator(maxFileSize int64) *Validator {
 			".webm": true,
 			".mkv":  true,
 		},
+		allowedBlurTypes: map[string]bool{
+			"gaussian": true,
+			"motion":   true,
+			"pixelate": true,
+		},
+		allowedObjects: map[string]bool{
+			"face":   true,
+			"person": true,
+			"car":    true,
+			"plate":  true,
+			"text":   true,
+			"logo":   true,
+		},
 	}
-}
-
-// ValidationError ошибка валидации
-type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
-}
-
-func (e ValidationError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }
 
 // ValidateEmail проверяет корректность email
@@ -129,7 +134,7 @@ func (v *Validator) ValidateName(name string) error {
 	}
 	
 	// Проверяем на допустимые символы
-	nameRegex := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ\s\-'\.]+$`)
+	nameRegex := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-'\.]+$`)
 	if !nameRegex.MatchString(name) {
 		return ValidationError{Field: "name", Message: "Name contains invalid characters"}
 	}
@@ -198,6 +203,42 @@ func (v *Validator) ValidateFile(fileHeader *multipart.FileHeader) error {
 	
 	return nil
 }
+
+// ValidateProcessingOptions проверяет опции обработки файла
+func (v *Validator) ValidateProcessingOptions(options ProcessingOptions) []ValidationError {
+	var errors []ValidationError
+	
+	// Проверяем тип блюра
+	if options.BlurType != "" && !v.allowedBlurTypes[options.BlurType] {
+		errors = append(errors, ValidationError{
+			Field:   "blur_type",
+			Message: "Invalid blur type. Allowed values: gaussian, motion, pixelate",
+		})
+	}
+	
+	// Проверяем интенсивность эффекта
+	if options.Intensity < 1 || options.Intensity > 10 {
+		errors = append(errors, ValidationError{
+			Field:   "intensity",
+			Message: "Intensity must be between 1 and 10",
+		})
+	}
+	
+	// Проверяем типы объектов
+	for _, objType := range options.ObjectTypes {
+		objType = strings.ToLower(strings.TrimSpace(objType))
+		if objType != "" && !v.allowedObjects[objType] {
+			errors = append(errors, ValidationError{
+				Field:   "object_types",
+				Message: fmt.Sprintf("Invalid object type: %s. Allowed values: face, person, car, plate, text, logo", objType),
+			})
+		}
+	}
+	
+	return errors
+}
+
+
 
 // ValidateRegistration проверяет данные регистрации
 func (v *Validator) ValidateRegistration(req RegisterRequest) []ValidationError {

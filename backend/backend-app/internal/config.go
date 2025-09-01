@@ -10,6 +10,8 @@ type Config struct {
 	UploadPath  string
 	MaxFileSize int64
 	JWTSecret   string
+	MaxAttemptsHandled int
+	HandlerTimeout int
 
 	// База данных
 	DBHost     string
@@ -30,6 +32,8 @@ func NewConfig() *Config {
 		UploadPath:  getEnv("UPLOAD_PATH", "./uploads"),
 		MaxFileSize: getEnvAsInt64("MAX_FILE_SIZE", 52428800), // 50MB
 		JWTSecret:   getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+		MaxAttemptsHandled:  getEnvAsInt("MAX_ATTEMPTS_HANDLED", 3),
+		HandlerTimeout: getEnvAsInt("HANDLER_TIMEOUT", 24),
 
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),

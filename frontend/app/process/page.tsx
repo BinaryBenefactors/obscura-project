@@ -372,7 +372,14 @@ const pollStatus = async (fileId: string) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${type}-${fileId}.${uploadedFile?.name.split(".").pop() || "file"}`;
+
+      // Найти файл в списке files для авторизованных пользователей
+      const file = files.find((f) => f.id === fileId);
+      const extension = isAuthenticated && file?.original_name 
+        ? file.original_name.split(".").pop() || "file"
+        : uploadedFile?.name.split(".").pop() || "file";
+      
+      a.download = `${type}-${fileId}.${extension}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error: any) {

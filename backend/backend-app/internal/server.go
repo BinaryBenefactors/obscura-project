@@ -29,7 +29,7 @@ type Server struct {
 }
 
 func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
-	rateLimiter := NewRateLimiter(3, 24*time.Hour)
+	rateLimiter := NewRateLimiter(config.MaxAttemptsHandled, time.Duration(config.HandlerTimeout)*time.Hour)
 	validator := NewValidator(config.MaxFileSize)
 	fileCleaner := NewFileCleaner(config.UploadPath, logger)
 	

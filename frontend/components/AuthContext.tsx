@@ -18,33 +18,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const storedToken = localStorage.getItem("authToken");
+    const storedUser = localStorage.getItem("user");
     if (storedToken) {
       setToken(storedToken);
-      fetchProfile(storedToken);
+      if (storedUser) setUser(JSON.parse(storedUser));
     }
   }, []);
-
-  const fetchProfile = async (authToken: string) => {
-    try {
-      const res = await fetch("http://localhost:8080/api/user/profile", {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser({ email: data.email, name: data.name });
-      } else {
-        logout();
-      }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      logout();
-    }
-  };
 
   const login = (newToken: string, newUser: { email: string; name?: string }) => {
     setToken(newToken);
     setUser(newUser);
     localStorage.setItem("authToken", newToken);
+    localStorage.setItem("user", JSON.stringify(newUser));
   };
 
   const logout = () => {

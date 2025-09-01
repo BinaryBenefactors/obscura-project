@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RegistrationModal } from "@/components/registration-modal";
 import { LoginModal } from "@/components/login-modal";
-import { Camera, Upload, Settings, Download, ArrowLeft, Play, Search, Check, Trash } from "lucide-react";
+import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
+
+const API_BASE = "https://reputedly-becoming-nutcracker.cloudpub.ru";
 
 const RUS_TO_ENG_MAPPING: { [key: string]: string } = {
   "лицо": "face",
@@ -122,7 +124,9 @@ export default function ProcessPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [files, setFiles] = useState<any[]>([]);
   const [rateRemaining, setRateRemaining] = useState<number | null>(null);
-  const { token, isAuthenticated } = useAuth();
+  const [currentFileId, setCurrentFileId] = useState<string | null>(null);
+  const [fileStatus, setFileStatus] = useState<string>("");
+  const { token, isAuthenticated, user, logout } = useAuth();
 
   const objectCategories = {
     people: ["лицо", "человек"],
@@ -216,101 +220,171 @@ export default function ProcessPage() {
     }
   };
 
-  const handleProcess = async () => {
-    if (!uploadedFile) return;
-    setProcessing(true);
+const handleProcess = async () => {
+  if (!uploadedFile || selectedObjects.length === 0) {
+    alert("Выберите файл и хотя бы один объект для обработки");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append("file", uploadedFile);
+  setProcessing(true);
+  setFileStatus("⏳ Загрузка...");
 
-    // Преобразуем объекты в английские названия
-    const englishObjects = selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj);
-    formData.append(
-      "settings",
-      JSON.stringify({
-        objects: englishObjects,
-        blurType,
-        intensity: blurIntensity[0],
-      })
-    );
+  const formData = new FormData();
+  formData.append("file", uploadedFile);
+  formData.append("blur_type", blurType === "blur" ? "gaussian" : blurType);
+  formData.append("intensity", Math.round(blurIntensity[0] / 10).toString());
+  formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
 
-    try {
-      const headers: HeadersInit = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+  try {
+    const res = await fetch(`${API_BASE}/api/upload`, {
+      method: "POST",
+      body: formData,
+      headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      if (res.status === 401 && isAuthenticated) {
+        alert("Сессия истекла, пожалуйста, войдите снова");
+        logout();
+      } else if (res.status === 429 && !isAuthenticated) {
+        alert("Исчерпан лимит в 3 попытки. Попробуйте завтра или войдите в аккаунт.");
+        setFileStatus("❌ Лимит попыток исчерпан");
+        return;
       }
-      const res = await fetch("http://localhost:8080/api/upload", {
-        method: "POST",
-        body: formData,
-        headers,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        console.log("Uploaded:", data);
-        if (isAuthenticated) {
-          fetchFiles();
-        }
-        const remaining = res.headers.get("X-RateLimit-Remaining");
-        if (remaining) {
-          setRateRemaining(parseInt(remaining));
-        }
-      } else {
-        const error = await res.json();
-        alert(error.message || "Ошибка загрузки");
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Ошибка соединения");
-    } finally {
-      setProcessing(false);
+      throw new Error(error.message || `Ошибка загрузки: ${res.status}`);
     }
-  };
-  
+
+    const data = await res.json();
+    console.log("Upload response:", data);
+    const fileId = data.data?.id;
+    if (!fileId) {
+      throw new Error("Не получен ID файла от сервера");
+    }
+
+    const remaining = !isAuthenticated ? res.headers.get("X-RateLimit-Remaining") : null;
+    if (remaining !== null) {
+      setRateRemaining(parseInt(remaining));
+    }
+
+    if (isAuthenticated) {
+      setFileStatus("⏳ Обрабатывается...");
+      pollStatus(fileId);
+      fetchFiles();
+    } else {
+      // Эмуляция прогресса для анонимных пользователей
+      setFileStatus("⏳ Обрабатывается...");
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += 20;
+        setFileStatus(`⏳ Обрабатывается... ${progress}%`);
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          setFileStatus("✅ Обработка завершена!");
+          setCurrentFileId(fileId);
+        }
+      }, 900); // ~4.5 секунды
+    }
+  } catch (error: any) {
+    console.error("Ошибка загрузки:", error);
+    setFileStatus(`❌ Ошибка: ${error.message || "Не удалось загрузить файл"}`);
+  } finally {
+    setProcessing(false);
+  }
+};
+
+const pollStatus = async (fileId: string) => {
+  try {
+    const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+      method: "GET",
+      headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      console.error("Polling error response:", error, "Status:", res.status); // Логируем ошибку
+      if (res.status === 401 && isAuthenticated) {
+        alert("Сессия истекла, пожалуйста, войдите снова");
+        logout();
+      } else if (res.status === 403 && !isAuthenticated) {
+        setFileStatus("❌ Ошибка: Сервер отклонил запрос на проверку статуса. Попробуйте позже.");
+        setCurrentFileId(null);
+        return;
+      }
+      throw new Error(error.message || `Ошибка получения статуса: ${res.status}`);
+    }
+
+    const { data } = await res.json();
+    console.log("Polling response:", data); // Логируем ответ
+    if (!data?.status) {
+      throw new Error("Статус файла не получен");
+    }
+
+    setFileStatus(data.status);
+    if (data.status === "completed") {
+      setFileStatus("✅ Обработка завершена!");
+      setCurrentFileId(fileId);
+    } else if (data.status === "failed") {
+      setFileStatus(`❌ Ошибка: ${data.error_message || "Неизвестная ошибка"}`);
+      setCurrentFileId(null);
+    } else {
+      setTimeout(() => pollStatus(fileId), 2500);
+    }
+  } catch (error: any) {
+    console.error("Ошибка polling:", error);
+    setFileStatus(`❌ Ошибка: ${error.message || "Не удалось проверить статус"}`);
+    setCurrentFileId(null);
+  }
+};
+
   const fetchFiles = async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !token) return;
     try {
-      const res = await fetch("http://localhost:8080/api/files", {
+      const res = await fetch(`${API_BASE}/api/files`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setFiles(data);
+        setFiles(data.data);
       }
     } catch (error) {
       console.error("Error fetching files:", error);
     }
   };
 
-  const handleDownload = async (fileId: string) => {
+  const handleDownload = async (fileId: string, type: "original" | "processed" = "processed") => {
     try {
-      const headers: HeadersInit = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(`http://localhost:8080/api/files/${fileId}`, {
-        headers,
+      const res = await fetch(`${API_BASE}/api/files/${fileId}?type=${type}`, {
+        method: "GET",
+        headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
       });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `processed-${fileId}`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        alert("Ошибка скачивания");
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        if (res.status === 401 && isAuthenticated) {
+          alert("Сессия истекла, пожалуйста, войдите снова");
+          logout();
+        }
+        throw new Error(error.message || `Ошибка скачивания: ${res.status}`);
       }
-    } catch (error) {
-      console.error("Download error:", error);
-      alert("Ошибка соединения");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${type}-${fileId}.${uploadedFile?.name.split(".").pop() || "file"}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      console.error(`Ошибка скачивания (${type}):`, error);
+      alert(`Ошибка: ${error.message || "Не удалось скачать файл"}`);
     }
   };
 
   const handleDelete = async (fileId: string) => {
     if (!isAuthenticated) return;
     try {
-      const res = await fetch(`http://localhost:8080/api/files/${fileId}`, {
+      const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -371,15 +445,15 @@ export default function ProcessPage() {
               {isAuthenticated ? (
                 <>
                   <span className="font-manrope text-white/80">
-                    Привет, {useAuth().user?.name || useAuth().user?.email}!
+                    Привет, {user?.name || user?.email || "Пользователь"}!
                   </span>
                   <Button
                     variant="ghost"
-                    onClick={useAuth().logout}
+                    onClick={logout}
                     className="font-manrope text-white hover:bg-white/10"
                   >
                     Выйти
-                  </Button>
+                  </Button>                     
                 </>
               ) : (
                 <>
@@ -682,12 +756,13 @@ export default function ProcessPage() {
                     </Select>
                   </div>
                   <Button
-                    variant="outline"
-                    className="w-full font-manrope bg-white/10 border-white/20 text-white hover:bg-white/20"
-                    disabled
+                    onClick={() => currentFileId && handleDownload(currentFileId, "processed")}
+                    disabled={!currentFileId || processing}
+                    className="w-full font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
                   >
                     Скачать результат
                   </Button>
+                  {fileStatus && <p className="font-manrope text-sm text-white/60">{fileStatus}</p>}
                 </div>
               </CardContent>
             </Card>
@@ -700,15 +775,33 @@ export default function ProcessPage() {
                   <ul className="space-y-2">
                     {files.map((file) => (
                       <li key={file.id} className="flex justify-between items-center">
-                        <span className="font-manrope text-white text-sm">{file.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-manrope text-white text-sm">{file.original_name}</span>
+                          <span className="font-manrope text-xs text-white/60">
+                            {file.status === "completed" && "✅ Завершено"}
+                            {file.status === "processing" && "⏳ Обрабатывается"}
+                            {file.status === "failed" && `❌ Ошибка: ${file.error_message || "Неизвестная ошибка"}`}
+                          </span>
+                        </div>
                         <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleDownload(file.id)}
-                            className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                          >
-                            Скачать
-                          </Button>
+                          {file.status === "completed" && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDownload(file.id, "original")}
+                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                              >
+                                Оригинал
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDownload(file.id, "processed")}
+                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                              >
+                                Обработанный
+                              </Button>
+                            </>
+                          )}
                           <Button
                             size="sm"
                             variant="destructive"

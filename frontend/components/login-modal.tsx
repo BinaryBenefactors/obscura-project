@@ -44,7 +44,10 @@ export function LoginModal({
       });
       if (res.ok) {
         const data = await res.json();
-        login(data.token, { email });
+        const token = data.token;
+        const name = data.user?.name || ""; // Извлекаем имя из ответа
+        if (!token) throw new Error("Токен не получен");
+        login(token, { email, name }); // Передаём email и name
         setOpen(false);
       } else {
         const error = await res.json();

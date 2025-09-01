@@ -15,7 +15,7 @@ import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash } f
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
 
-const API_BASE = "https://reputedly-becoming-nutcracker.cloudpub.ru";
+const API_BASE = "http://localhost:8080";
 
 const RUS_TO_ENG_MAPPING: { [key: string]: string } = {
   "лицо": "face",

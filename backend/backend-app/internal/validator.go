@@ -134,7 +134,7 @@ func (v *Validator) ValidateName(name string) error {
 	}
 	
 	// Проверяем на допустимые символы
-	nameRegex := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ\s\-'\.]+$`)
+	nameRegex := regexp.MustCompile(`^[a-zA-Zа-яА-ЯёЁ0-9\s\-'\.]+$`)
 	if !nameRegex.MatchString(name) {
 		return ValidationError{Field: "name", Message: "Name contains invalid characters"}
 	}

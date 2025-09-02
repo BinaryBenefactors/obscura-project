@@ -15,7 +15,7 @@ import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash } f
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
 
-const API_BASE = "http://localhost:8080";
+const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
 const RUS_TO_ENG_MAPPING: { [key: string]: string } = {
   "лицо": "face",
@@ -236,7 +236,7 @@ const handleProcess = async () => {
   formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
 
   try {
-    const res = await fetch(`${API_BASE}/api/upload`, {
+    const res = await fetch(`${API_LINK}/api/upload`, {
       method: "POST",
       body: formData,
       headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -295,7 +295,7 @@ const handleProcess = async () => {
 
 const pollStatus = async (fileId: string) => {
   try {
-    const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+    const res = await fetch(`${API_LINK}/api/files/${fileId}`, {
       method: "GET",
       headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
     });
@@ -340,7 +340,7 @@ const pollStatus = async (fileId: string) => {
   const fetchFiles = async () => {
     if (!isAuthenticated || !token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/files`, {
+      const res = await fetch(`${API_LINK}/api/files`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -354,7 +354,7 @@ const pollStatus = async (fileId: string) => {
 
   const handleDownload = async (fileId: string, type: "original" | "processed" = "processed") => {
     try {
-      const res = await fetch(`${API_BASE}/api/files/${fileId}?type=${type}`, {
+      const res = await fetch(`${API_LINK}/api/files/${fileId}?type=${type}`, {
         method: "GET",
         headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -391,7 +391,7 @@ const pollStatus = async (fileId: string) => {
   const handleDelete = async (fileId: string) => {
     if (!isAuthenticated) return;
     try {
-      const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+      const res = await fetch(`${API_LINK}/api/files/${fileId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

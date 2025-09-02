@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Camera } from "lucide-react";
 import { useAuth } from "@/components/AuthContext";
 
+const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
+
 interface LoginModalProps {
   children: React.ReactNode;
   onSwitchToRegister?: () => void;
@@ -37,7 +39,7 @@ export function LoginModal({
       return;
     }
     try {
-      const res = await fetch("http://localhost:8080/api/login", {
+      const res = await fetch(API_LINK + "/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

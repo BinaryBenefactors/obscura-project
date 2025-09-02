@@ -32,7 +32,7 @@ func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
 	rateLimiter := NewRateLimiter(config.MaxAttemptsHandled, time.Duration(config.HandlerTimeout)*time.Hour)
 	validator := NewValidator(config.MaxFileSize)
 	fileCleaner := NewFileCleaner(config.UploadPath, logger)
-	
+
 	server := &Server{
 		config:      config,
 		db:          db,
@@ -42,7 +42,7 @@ func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
 		validator:   validator,
 		fileCleaner: fileCleaner,
 	}
-	
+
 	fileCleaner.Start()
 	return server
 }
@@ -50,35 +50,33 @@ func NewServer(config *Config, db *Database, logger *logger.Logger) *Server {
 func (s *Server) SetupRoutes() {
 	// Swagger UI
 	s.router.HandleFunc("/swagger/", httpSwagger.WrapHandler)
-	
+
 	// Middleware для CORS
 	s.router.HandleFunc("/", s.corsMiddleware(s.handleRoot))
 
 	// Health check
 	s.router.HandleFunc("/health", s.corsMiddleware(s.handleHealth))
-	
+
 	// API маршруты
 	s.router.HandleFunc("/api/register", s.corsMiddleware(s.handleRegister))
 	s.router.HandleFunc("/api/login", s.corsMiddleware(s.handleLogin))
-	
+
 	// Профиль пользователя - только для авторизованных
 	s.router.HandleFunc("/api/user/profile", s.corsMiddleware(s.authMiddleware(s.handleUserProfile)))
 	s.router.HandleFunc("/api/user/profile/update", s.corsMiddleware(s.authMiddleware(s.handleUpdateProfile)))
-	
+
 	// Загрузка файлов
 	s.router.HandleFunc("/api/upload", s.corsMiddleware(s.optionalAuthMiddleware(s.handleUpload)))
-	
+
 	// Получение списка файлов
 	s.router.HandleFunc("/api/files", s.corsMiddleware(s.authMiddleware(s.handleGetFiles)))
-	
+
 	// Действия с файлами
 	s.router.HandleFunc("/api/files/", s.corsMiddleware(s.optionalAuthMiddleware(s.handleFileActions)))
-	
 
-	
 	// Статистика для профиля
 	s.router.HandleFunc("/api/user/stats", s.corsMiddleware(s.authMiddleware(s.handleUserStats)))
-	
+
 	// Административная информация
 	s.router.HandleFunc("/api/admin/stats", s.corsMiddleware(s.handleAdminStats))
 }
@@ -92,7 +90,7 @@ func (s *Server) GetRouter() *http.ServeMux {
 func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("Request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-		
+
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -111,7 +109,7 @@ func (s *Server) corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) optionalAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("Optional auth middleware for %s %s", r.Method, r.URL.Path)
-		
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			s.logger.Debug("No authorization header - proceeding as anonymous user")
@@ -168,7 +166,7 @@ func (s *Server) optionalAuthMiddleware(next http.HandlerFunc) http.HandlerFunc 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("Auth middleware for %s %s", r.Method, r.URL.Path)
-		
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			s.logger.Warning("Missing Authorization header for %s", r.URL.Path)
@@ -231,6 +229,7 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	s.sendJSON(w, map[string]string{
 		"message": "Obscura API",
+		"author": "bambutcha (Yagolnik Daniil)",
 		"version": "1.0.0",
 	})
 }
@@ -621,7 +620,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			s.sendError(w, fmt.Sprintf("Rate limit exceeded. Try again in %v", waitTime.Round(time.Minute)), http.StatusTooManyRequests)
 			return
 		}
-		
+
 		w.Header().Set("X-RateLimit-Limit", "3")
 		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", 3-count))
 		s.logger.Info("Anonymous file upload started (usage: %d/3)", count)
@@ -658,7 +657,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Парсим опции обработки
 	options := s.parseProcessingOptions(r)
 
-	s.logger.Info("Processing file upload: %s (%d bytes) %s", header.Filename, header.Size, 
+	s.logger.Info("Processing file upload: %s (%d bytes) %s", header.Filename, header.Size,
 		func() string {
 			if isAnonymous {
 				return "for anonymous user"
@@ -805,7 +804,7 @@ func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
 	// Получаем query parameter type для определения типа операции
 	downloadType := r.URL.Query().Get("type")
 
-	s.logger.Debug("File action %s for file %s by %s (type: %s)", r.Method, fileID, 
+	s.logger.Debug("File action %s for file %s by %s (type: %s)", r.Method, fileID,
 		func() string {
 			if isAnonymous {
 				return "anonymous user"
@@ -830,8 +829,6 @@ func (s *Server) handleFileActions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
-
 // Скачивание файла по ID
 func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, fileID string, userID int, isAnonymous bool, isProcessed bool) {
 	if isAnonymous {
@@ -845,10 +842,10 @@ func (s *Server) handleDownloadFileByID(w http.ResponseWriter, r *http.Request, 
 			s.sendError(w, "File not found", http.StatusNotFound)
 			return
 		}
-		
+
 		filePath := matches[0]
 		s.logger.Info("Serving anonymous file: %s (processed: %v)", fileID, isProcessed)
-		
+
 		mimeType := s.determineMimeTypeFromPath(filePath)
 		w.Header().Set("Content-Type", mimeType)
 		http.ServeFile(w, r, filePath)
@@ -918,10 +915,6 @@ func (s *Server) handleDeleteFileByID(w http.ResponseWriter, r *http.Request, fi
 
 	s.handleDeleteFile(w, r, file)
 }
-
-
-
-
 
 // Скачивание файла
 func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request, file *File, isProcessed bool) {
@@ -1220,7 +1213,7 @@ func (s *Server) copyFile(src, dst string) error {
 func (s *Server) generateJWT(userID uint) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(),
+		"exp":     time.Now().Add(time.Minute * 30).Unix(),
 	})
 
 	return token.SignedString([]byte(s.config.JWTSecret))
@@ -1248,7 +1241,7 @@ func (s *Server) sendValidationErrors(w http.ResponseWriter, errors []Validation
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error": "Validation failed",
+		"error":  "Validation failed",
 		"errors": errors,
 	})
 }

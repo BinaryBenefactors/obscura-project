@@ -6,12 +6,12 @@ import (
 )
 
 type Config struct {
-	Port        string
-	UploadPath  string
-	MaxFileSize int64
-	JWTSecret   string
+	Port               string
+	UploadPath         string
+	MaxFileSize        int64
+	JWTSecret          string
 	MaxAttemptsHandled int
-	HandlerTimeout int
+	HandlerTimeout     int
 
 	// База данных
 	DBHost     string
@@ -21,19 +21,19 @@ type Config struct {
 	DBName     string
 
 	// ML сервис
-	MLServiceURL       string
-	MLServiceTimeout   int    // в секундах
-	MLServiceEnabled   bool
+	MLServiceURL     string
+	MLServiceTimeout int // в секундах
+	MLServiceEnabled bool
 }
 
 func NewConfig() *Config {
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		UploadPath:  getEnv("UPLOAD_PATH", "./uploads"),
-		MaxFileSize: getEnvAsInt64("MAX_FILE_SIZE", 52428800), // 50MB
-		JWTSecret:   getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
-		MaxAttemptsHandled:  getEnvAsInt("MAX_ATTEMPTS_HANDLED", 3),
-		HandlerTimeout: getEnvAsInt("HANDLER_TIMEOUT", 24),
+		Port:               getEnv("PORT", "8080"),
+		UploadPath:         getEnv("UPLOAD_PATH", "./uploads"),
+		MaxFileSize:        getEnvAsInt64("MAX_FILE_SIZE", 52428800), // 50MB
+		JWTSecret:          getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+		MaxAttemptsHandled: getEnvAsInt("MAX_ATTEMPTS_HANDLED", 3),
+		HandlerTimeout:     getEnvAsInt("HANDLER_TIMEOUT", 24),
 
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),
@@ -41,9 +41,9 @@ func NewConfig() *Config {
 		DBPassword: getEnv("DB_PASSWORD", "postgres"),
 		DBName:     getEnv("DB_NAME", "obscura"),
 
-		MLServiceURL:       getEnv("ML_SERVICE_URL", "http://ml:5000"),
-		MLServiceTimeout:   getEnvAsInt("ML_SERVICE_TIMEOUT", 300), // 5 минут
-		MLServiceEnabled:   getEnvAsBool("ML_SERVICE_ENABLED", false), // пока отключен
+		MLServiceURL:     getEnv("ML_SERVICE_URL", "http://ml:5000"),
+		MLServiceTimeout: getEnvAsInt("ML_SERVICE_TIMEOUT", 300),    // 5 минут
+		MLServiceEnabled: getEnvAsBool("ML_SERVICE_ENABLED", false), // пока отключен
 	}
 }
 

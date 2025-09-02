@@ -18,7 +18,7 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at" example:"2024-01-15T09:00:00Z"`
 }
 
-// File модель загруженного файла  
+// File модель загруженного файла
 // @Description Uploaded file information with processing status
 type File struct {
 	ID            string    `json:"id" gorm:"primarykey" example:"550e8400-e29b-41d4-a716-446655440000"`
@@ -39,30 +39,30 @@ type File struct {
 // UserStats статистика пользователя
 // @Description User statistics and usage information
 type UserStats struct {
-	TotalFiles          int                `json:"total_files" example:"25"`
-	TotalSize           int64              `json:"total_size" example:"52428800"`
-	TotalSizeMB         float64            `json:"total_size_mb" example:"50.0"`
-	ProcessedFiles      int                `json:"processed_files" example:"20"`
-	ProcessingFiles     int                `json:"processing_files" example:"2"`
-	FailedFiles         int                `json:"failed_files" example:"3"`
-	UploadedToday       int                `json:"uploaded_today" example:"3"`
-	UploadedThisWeek    int                `json:"uploaded_this_week" example:"8"`
-	UploadedThisMonth   int                `json:"uploaded_this_month" example:"15"`
-	ProcessedToday      int                `json:"processed_today" example:"2"`
-	ProcessedThisWeek   int                `json:"processed_this_week" example:"7"`
-	ProcessedThisMonth  int                `json:"processed_this_month" example:"12"`
-	FilesByStatus       map[string]int     `json:"files_by_status" example:"uploaded:2,processing:2,completed:20,failed:1"`
-	FilesByType         map[string]int     `json:"files_by_type" example:"image:15,video:10"`
-	RecentFiles         []File             `json:"recent_files"`
+	TotalFiles         int            `json:"total_files" example:"25"`
+	TotalSize          int64          `json:"total_size" example:"52428800"`
+	TotalSizeMB        float64        `json:"total_size_mb" example:"50.0"`
+	ProcessedFiles     int            `json:"processed_files" example:"20"`
+	ProcessingFiles    int            `json:"processing_files" example:"2"`
+	FailedFiles        int            `json:"failed_files" example:"3"`
+	UploadedToday      int            `json:"uploaded_today" example:"3"`
+	UploadedThisWeek   int            `json:"uploaded_this_week" example:"8"`
+	UploadedThisMonth  int            `json:"uploaded_this_month" example:"15"`
+	ProcessedToday     int            `json:"processed_today" example:"2"`
+	ProcessedThisWeek  int            `json:"processed_this_week" example:"7"`
+	ProcessedThisMonth int            `json:"processed_this_month" example:"12"`
+	FilesByStatus      map[string]int `json:"files_by_status" example:"uploaded:2,processing:2,completed:20,failed:1"`
+	FilesByType        map[string]int `json:"files_by_type" example:"image:15,video:10"`
+	RecentFiles        []File         `json:"recent_files"`
 }
 
 // ProcessingRequest запрос на обработку файла ML-сервисом
 // @Description ML processing request
 type ProcessingRequest struct {
-	FileID     string            `json:"file_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	FilePath   string            `json:"file_path" example:"/uploads/550e8400-e29b-41d4-a716-446655440000.jpg"`
-	MimeType   string            `json:"mime_type" example:"image/jpeg"`
-	Options    ProcessingOptions `json:"options"`
+	FileID   string            `json:"file_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FilePath string            `json:"file_path" example:"/uploads/550e8400-e29b-41d4-a716-446655440000.jpg"`
+	MimeType string            `json:"mime_type" example:"image/jpeg"`
+	Options  ProcessingOptions `json:"options"`
 }
 
 // ProcessingOptions опции обработки файла
@@ -167,7 +167,7 @@ func (f *File) CanBeProcessed() bool {
 // Статусы файлов
 const (
 	StatusUploaded   = "uploaded"
-	StatusProcessing = "processing" 
+	StatusProcessing = "processing"
 	StatusCompleted  = "completed"
 	StatusFailed     = "failed"
 )

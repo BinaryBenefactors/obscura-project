@@ -229,7 +229,7 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	s.sendJSON(w, map[string]string{
 		"message": "Obscura API",
-		"author": "bambutcha (Yagolnik Daniil)",
+		"author":  "bambutcha (Yagolnik Daniil)",
 		"version": "1.0.0",
 	})
 }
@@ -614,15 +614,15 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		allowed, count, waitTime := s.rateLimiter.IsAllowed(r)
 		if !allowed {
 			s.logger.Warning("Rate limit exceeded for anonymous user (count: %d, wait: %v)", count, waitTime)
-			w.Header().Set("X-RateLimit-Limit", "3")
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(s.config.MaxAttemptsHandled))
 			w.Header().Set("X-RateLimit-Remaining", "0")
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(waitTime).Unix()))
 			s.sendError(w, fmt.Sprintf("Rate limit exceeded. Try again in %v", waitTime.Round(time.Minute)), http.StatusTooManyRequests)
 			return
 		}
 
-		w.Header().Set("X-RateLimit-Limit", "3")
-		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", 3-count))
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(s.config.MaxAttemptsHandled))
+		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", s.config.MaxAttemptsHandled-count))
 		s.logger.Info("Anonymous file upload started (usage: %d/3)", count)
 	} else {
 		s.logger.Info("File upload started for user %d", userID)

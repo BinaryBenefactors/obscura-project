@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RegistrationModal } from "@/components/registration-modal";
 import { LoginModal } from "@/components/login-modal";
-import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash } from "lucide-react";
+import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
 
@@ -430,7 +430,7 @@ const pollStatus = async (fileId: string) => {
   return (
     <div className="min-h-screen bg-black relative">
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
-      <div className="particles absolute top-0 left-0 w-full h-full z-10" id="particles"></div>
+      <div className="particles absolute top-0 left-0 w-full h-full overflow-hidden z-10" id="particles"></div>
 
       <header className="fixed top-0 w-full z-50 backdrop-blur-lg bg-black/10 border-b border-white/10 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -449,6 +449,14 @@ const pollStatus = async (fileId: string) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {isAuthenticated && (
+                <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
+                   <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      История
+                    </Button>
+                </Link>
+              )}
               {isAuthenticated ? (
                 <>
                   <span className="font-manrope text-white/80">

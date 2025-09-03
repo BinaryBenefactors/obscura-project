@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Download, TrendingUp, Calendar, Clock, FileImage, FileVideo, ArrowLeft, Trash, Eye } from "lucide-react"
+import { Camera, Download, TrendingUp, Calendar, CircleX, FileImage, FileVideo, ArrowLeft, Trash, Eye } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/AuthContext"
 import { LoginModal } from "@/components/login-modal"
@@ -15,9 +15,11 @@ const API_BASE = "http://localhost:8080"
 export default function HistoryPage() {
   const { token, isAuthenticated, user, logout } = useAuth()
   const [files, setFiles] = useState<any[]>([])
-  const [stats, setStats] = useState<{ total_files: number; processed_this_week: number }>({
+  const [stats, setStats] = useState<{ total_files: number; total_processed: number; total_failed: number; total_size: number }>({
     total_files: 0,
-    processed_this_week: 0,
+    total_processed: 0,
+    total_failed: 0,
+    total_size: 0,
   })
   const [loading, setLoading] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -68,11 +70,13 @@ export default function HistoryPage() {
       const { data } = await res.json()
       setStats({
         total_files: data.total_files || 0,
-        processed_this_week: data.processed_this_week || 0,
+        total_processed: data.total_processed || 0,
+        total_failed: data.total_failed || 0,
+        total_size: data.total_size || 0,
       })
     } catch (error) {
       console.error("Ошибка загрузки статистики:", error)
-      setStats({ total_files: 0, processed_this_week: 0 })
+      setStats({ total_files: 0, total_processed: 0, total_failed: 0, total_size: 0 })
     }
   }
 
@@ -155,6 +159,11 @@ export default function HistoryPage() {
     if (size < 1024) return `${size} Б`
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`
     return `${(size / (1024 * 1024)).toFixed(1)} МБ`
+  }
+
+  // Форматирование общего размера (в МБ)
+  const formatTotalSizeMB = (size: number) => {
+    return (size / (1024 * 1024)).toFixed(1)
   }
 
   // Маппинг статусов
@@ -287,19 +296,19 @@ export default function HistoryPage() {
           <div className="text-center mb-12">
             <h1 className="font-geist font-bold text-4xl lg:text-5xl text-white mb-4">История обработки</h1>
             <p className="font-manrope text-xl text-white/70 max-w-2xl mx-auto">
-              Все ваши обработанные файлы в одном месте. Скачивайте повторно или просматривайте детали обработки.
+              Все ваши обработанные файлы в одном месте. Статистика сохраняется даже после удаления файлов.
             </p>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
             <Card className="bg-white/5 backdrop-blur-lg border-white/10 text-white">
               <CardContent className="p-6 text-center">
                 <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <FileImage className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-2xl font-bold mb-1">{stats.total_files}</div>
-                <div className="text-white/70 text-sm">Обработано файлов</div>
+                <div className="text-white/70 text-sm">Всего файлов</div>
               </CardContent>
             </Card>
             <Card className="bg-white/5 backdrop-blur-lg border-white/10 text-white">
@@ -307,17 +316,26 @@ export default function HistoryPage() {
                 <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-2xl font-bold mb-1">{stats.processed_this_week}</div>
-                <div className="text-white/70 text-sm">Обработано за неделю</div>
+                <div className="text-2xl font-bold mb-1">{stats.total_processed}</div>
+                <div className="text-white/70 text-sm">Успешно обработано</div>
               </CardContent>
             </Card>
             <Card className="bg-white/5 backdrop-blur-lg border-white/10 text-white">
               <CardContent className="p-6 text-center">
                 <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-6 h-6 text-white" />
+                  <CircleX className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-2xl font-bold mb-1">{(stats.total_files * 0.2).toFixed(1)}</div>
-                <div className="text-white/70 text-sm">Часа сэкономлено</div>
+                <div className="text-2xl font-bold mb-1">{stats.total_failed}</div>
+                <div className="text-white/70 text-sm">Неудачных обработок</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white/5 backdrop-blur-lg border-white/10 text-white">
+              <CardContent className="p-6 text-center">
+                <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Download className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-2xl font-bold mb-1">{formatTotalSizeMB(stats.total_size)}</div>
+                <div className="text-white/70 text-sm">МБ обработано</div>
               </CardContent>
             </Card>
           </div>
@@ -357,13 +375,7 @@ export default function HistoryPage() {
                         {/* Thumbnail */}
                         <div className="flex-shrink-0">
                           <div className="w-20 h-20 bg-white/10 rounded-lg overflow-hidden flex items-center justify-center">
-                            {file.thumbnail ? (
-                              <img
-                                src={file.thumbnail}
-                                alt={file.original_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : getFileType(file.mime_type) === "image" ? (
+                            {getFileType(file.mime_type) === "image" ? (
                               <FileImage className="w-8 h-8 text-white/60" />
                             ) : (
                               <FileVideo className="w-8 h-8 text-white/60" />
@@ -389,16 +401,6 @@ export default function HistoryPage() {
                               <span className="font-medium">Размер:</span>{" "}
                               {formatFileSize(file.processed_size || file.file_size)}
                             </div>
-                            {/*
-                            <div>
-                              <span className="font-medium">Эффект:</span>{" "}
-                              {blurTypeMap[file.blur_type] || "Неизвестно"}
-                            </div>
-                            <div>
-                              <span className="font-medium">Качество:</span>{" "}
-                              {qualityMap[file.quality] || "Оригинальное"}
-                            </div>
-                            */}
                           </div>
 
                           <div className="mt-3">
@@ -407,20 +409,6 @@ export default function HistoryPage() {
                               <Badge variant="outline" className="border-cyan-400/30 text-cyan-400 text-xs">
                                 {statusMap[file.status] || file.status}
                               </Badge>
-                              {file.objects_detected?.length > 0 && (
-                                <>
-                                  <span className="text-white/70 text-sm">Размыто:</span>
-                                  {file.objects_detected.map((object: string, index: number) => (
-                                    <Badge
-                                      key={index}
-                                      variant="outline"
-                                      className="border-cyan-400/30 text-cyan-400 text-xs"
-                                    >
-                                      {object}
-                                    </Badge>
-                                  ))}
-                                </>
-                              )}
                               {file.status === "failed" && file.error_message && (
                                 <span className="text-red-400 text-xs">{file.error_message}</span>
                               )}
@@ -430,17 +418,6 @@ export default function HistoryPage() {
 
                         {/* Actions */}
                         <div className="flex-shrink-0 flex gap-2">
-                          {file.thumbnail && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-white/20 text-white hover:bg-white/10 bg-transparent"
-                              onClick={() => window.open(file.thumbnail, "_blank")}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              Просмотр
-                            </Button>
-                          )}
                           {file.status === "completed" && (
                             <>
                               <Button

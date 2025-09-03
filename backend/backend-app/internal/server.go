@@ -546,11 +546,11 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user statistics
-// @Description Get detailed statistics about user's files, uploads and processing status
+// @Description Get accumulated user statistics (persists even after file deletion)
 // @Tags user
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} SuccessResponse{data=UserStats}
+// @Success 200 {object} SuccessResponse{data=User}
 // @Failure 401 {object} ErrorResponse
 // @Router /api/user/stats [get]
 func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
@@ -569,7 +569,7 @@ func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Debug("Getting stats for user %d", userID)
 
-	stats, err := s.db.GetUserStats(uint(userID))
+	user, err := s.db.GetUserStats(uint(userID))
 	if err != nil {
 		s.logger.Error("Failed to get user stats for user %d: %v", userID, err)
 		s.sendError(w, "Failed to get stats", http.StatusInternalServerError)
@@ -580,7 +580,7 @@ func (s *Server) handleUserStats(w http.ResponseWriter, r *http.Request) {
 
 	s.sendJSON(w, SuccessResponse{
 		Message: "Stats retrieved successfully",
-		Data:    stats,
+		Data:    user,
 	})
 }
 

@@ -14,8 +14,13 @@ type User struct {
 	Email     string    `json:"email" gorm:"uniqueIndex;not null" example:"user@example.com"`
 	Password  string    `json:"-" gorm:"not null"`
 	Name      string    `json:"name" gorm:"not null" example:"John Doe"`
-	CreatedAt time.Time `json:"created_at" example:"2024-01-15T09:00:00Z"`
-	UpdatedAt time.Time `json:"updated_at" example:"2024-01-15T09:00:00Z"`
+	TotalFiles        int       `json:"total_files" gorm:"default:0" example:"50"`
+	TotalProcessed    int       `json:"total_processed" gorm:"default:0" example:"45"`
+	TotalFailed       int       `json:"total_failed" gorm:"default:0" example:"5"`
+	TotalSize         int64     `json:"total_size" gorm:"default:0" example:"524288000"`
+	LastStatsUpdate   time.Time `json:"last_stats_update" example:"2024-01-15T09:00:00Z"`
+	CreatedAt time.Time `json:"created_at" example:"2025-01-15T09:00:00Z"`
+	UpdatedAt time.Time `json:"updated_at" example:"2025-01-15T09:00:00Z"`
 }
 
 // File модель загруженного файла
@@ -31,29 +36,9 @@ type File struct {
 	MimeType      string    `json:"mime_type" gorm:"not null" example:"image/jpeg"`
 	Status        string    `json:"status" gorm:"default:'uploaded'" example:"uploaded" enums:"uploaded,processing,completed,failed"`
 	ErrorMessage  string    `json:"error_message,omitempty" gorm:"" example:"Processing failed: invalid format"`
-	UploadedAt    time.Time `json:"uploaded_at" example:"2024-01-15T09:00:00Z"`
-	ProcessedAt   time.Time `json:"processed_at,omitempty" example:"2024-01-15T09:05:00Z"`
+	UploadedAt    time.Time `json:"uploaded_at" example:"2025-01-15T09:00:00Z"`
+	ProcessedAt   time.Time `json:"processed_at,omitempty" example:"2025-01-15T09:05:00Z"`
 	User          User      `json:"-" gorm:"foreignKey:UserID"`
-}
-
-// UserStats статистика пользователя
-// @Description User statistics and usage information
-type UserStats struct {
-	TotalFiles         int            `json:"total_files" example:"25"`
-	TotalSize          int64          `json:"total_size" example:"52428800"`
-	TotalSizeMB        float64        `json:"total_size_mb" example:"50.0"`
-	ProcessedFiles     int            `json:"processed_files" example:"20"`
-	ProcessingFiles    int            `json:"processing_files" example:"2"`
-	FailedFiles        int            `json:"failed_files" example:"3"`
-	UploadedToday      int            `json:"uploaded_today" example:"3"`
-	UploadedThisWeek   int            `json:"uploaded_this_week" example:"8"`
-	UploadedThisMonth  int            `json:"uploaded_this_month" example:"15"`
-	ProcessedToday     int            `json:"processed_today" example:"2"`
-	ProcessedThisWeek  int            `json:"processed_this_week" example:"7"`
-	ProcessedThisMonth int            `json:"processed_this_month" example:"12"`
-	FilesByStatus      map[string]int `json:"files_by_status" example:"uploaded:2,processing:2,completed:20,failed:1"`
-	FilesByType        map[string]int `json:"files_by_type" example:"image:15,video:10"`
-	RecentFiles        []File         `json:"recent_files"`
 }
 
 // ProcessingRequest запрос на обработку файла ML-сервисом

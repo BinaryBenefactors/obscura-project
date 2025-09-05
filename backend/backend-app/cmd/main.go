@@ -11,7 +11,25 @@ import (
 
 	"obscura.app/internal"
 	"obscura.app/pkg/logger"
+
+	// Импорт сгенерированной документации - добавить после генерации
+	_ "obscura.app/docs"
 )
+
+// @title Obscura API
+// @version 1.0
+// @description Advanced file upload and ML processing API for image and video blurring
+
+// @contact.name API Support
+// @contact.email yagadanaga@ya.ru
+
+// @host localhost:8080
+// @BasePath /api
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token
 
 func main() {
 	// Создаем логгер
@@ -23,6 +41,9 @@ func main() {
 
 	// Загружаем конфигурацию
 	cfg := internal.NewConfig()
+
+	appLogger.Info("Starting Obscura API server...")
+	appLogger.Info("Configuration loaded: ML service enabled: %v, URL: %s", cfg.MLServiceEnabled, cfg.MLServiceURL)
 
 	// Создаем папку для загрузок
 	if err := os.MkdirAll(cfg.UploadPath, 0755); err != nil {
@@ -41,6 +62,8 @@ func main() {
 	// Настраиваем роуты
 	server.SetupRoutes()
 
+	appLogger.Info("Routes configured successfully")
+
 	// Создаем HTTP сервер
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -53,6 +76,9 @@ func main() {
 	// Запускаем сервер в горутине
 	go func() {
 		appLogger.Info("Server starting on port %s", cfg.Port)
+		appLogger.Info("Swagger UI available at: http://localhost:%s/swagger/", cfg.Port)
+		appLogger.Info("API endpoints available at: http://localhost:%s/api/", cfg.Port)
+
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			appLogger.Fatal("Server failed: %v", err)
 		}
@@ -61,7 +87,7 @@ func main() {
 	// Ожидание сигнала для graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	<-quit
 	appLogger.Info("Shutting down server...")
 
@@ -77,5 +103,5 @@ func main() {
 	// Останавливаем внутренние сервисы
 	server.Stop()
 
-	appLogger.Info("Server exited")
+	appLogger.Info("Server exited gracefully")
 }

@@ -1,0 +1,558 @@
+basePath: /api
+definitions:
+  internal.AuthResponse:
+    description: Authentication response with JWT token
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user:
+        $ref: '#/definitions/internal.User'
+    type: object
+  internal.ErrorResponse:
+    description: Error response
+    properties:
+      error:
+        example: Invalid credentials
+        type: string
+    type: object
+  internal.File:
+    description: Uploaded file information with processing status
+    properties:
+      error_message:
+        example: 'Processing failed: invalid format'
+        type: string
+      file_name:
+        example: 550e8400-e29b-41d4-a716-446655440000.jpg
+        type: string
+      file_size:
+        example: 1048576
+        type: integer
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      mime_type:
+        example: image/jpeg
+        type: string
+      original_name:
+        example: photo.jpg
+        type: string
+      processed_at:
+        example: "2024-01-15T09:05:00Z"
+        type: string
+      processed_name:
+        example: 550e8400-e29b-41d4-a716-446655440000_processed.jpg
+        type: string
+      processed_size:
+        example: 1048576
+        type: integer
+      status:
+        enum:
+        - uploaded
+        - processing
+        - completed
+        - failed
+        example: uploaded
+        type: string
+      uploaded_at:
+        example: "2024-01-15T09:00:00Z"
+        type: string
+      user_id:
+        example: 1
+        type: integer
+    type: object
+  internal.LoginRequest:
+    description: User login request
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: securePassword123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal.RegisterRequest:
+    description: User registration request
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      name:
+        example: John Doe
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        example: securePassword123
+        maxLength: 128
+        minLength: 6
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  internal.SuccessResponse:
+    description: Success response with optional data
+    properties:
+      data: {}
+      message:
+        example: Operation completed successfully
+        type: string
+    type: object
+  internal.UpdateProfileRequest:
+    description: Profile update request (all fields are optional)
+    properties:
+      email:
+        example: newemail@example.com
+        type: string
+      name:
+        example: Jane Doe
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        example: newSecurePassword456
+        maxLength: 128
+        minLength: 6
+        type: string
+    type: object
+  internal.User:
+    description: User account information
+    properties:
+      created_at:
+        example: "2024-01-15T09:00:00Z"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: John Doe
+        type: string
+      updated_at:
+        example: "2024-01-15T09:00:00Z"
+        type: string
+    type: object
+  internal.UserStats:
+    description: User statistics and usage information
+    properties:
+      failed_files:
+        example: 3
+        type: integer
+      files_by_status:
+        additionalProperties:
+          type: integer
+        example:
+          completed: 20
+          failed: 1
+          processing: 2
+          uploaded: 2
+        type: object
+      files_by_type:
+        additionalProperties:
+          type: integer
+        example:
+          image: 15
+          video: 10
+        type: object
+      processed_files:
+        example: 20
+        type: integer
+      processed_this_month:
+        example: 12
+        type: integer
+      processed_this_week:
+        example: 7
+        type: integer
+      processed_today:
+        example: 2
+        type: integer
+      processing_files:
+        example: 2
+        type: integer
+      recent_files:
+        items:
+          $ref: '#/definitions/internal.File'
+        type: array
+      total_files:
+        example: 25
+        type: integer
+      total_size:
+        example: 52428800
+        type: integer
+      total_size_mb:
+        example: 50
+        type: number
+      uploaded_this_month:
+        example: 15
+        type: integer
+      uploaded_this_week:
+        example: 8
+        type: integer
+      uploaded_today:
+        example: 3
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: yagadanaga@ya.ru
+    name: API Support
+  description: Advanced file upload and ML processing API for image and video blurring
+  title: Obscura API
+  version: "1.0"
+paths:
+  /:
+    get:
+      description: Get basic API information and version
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: API information
+      tags:
+      - system
+  /api/admin/stats:
+    get:
+      description: Get administrative statistics about server, file system, ML service
+        and rate limiter
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal.SuccessResponse'
+      summary: Admin statistics
+      tags:
+      - admin
+  /api/files:
+    get:
+      description: Get list of all files uploaded by the authenticated user with their
+        processing status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/internal.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal.File'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user files
+      tags:
+      - files
+  /api/files/{id}:
+    delete:
+      description: 'Handle file operations: GET for file info/download, DELETE for
+        removal. Use ?type=original or ?type=processed query parameter for downloads'
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Download type
+        enum:
+        - original
+        - processed
+        in: query
+        name: type
+        type: string
+      responses:
+        "200":
+          description: File deleted
+          schema:
+            $ref: '#/definitions/internal.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: File operations
+      tags:
+      - files
+    get:
+      description: 'Handle file operations: GET for file info/download, DELETE for
+        removal. Use ?type=original or ?type=processed query parameter for downloads'
+      parameters:
+      - description: File ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Download type
+        enum:
+        - original
+        - processed
+        in: query
+        name: type
+        type: string
+      responses:
+        "200":
+          description: File deleted
+          schema:
+            $ref: '#/definitions/internal.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: File operations
+      tags:
+      - files
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: User login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal.AuthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: User login
+      tags:
+      - auth
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with email, password and name
+      parameters:
+      - description: User registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: Register new user
+      tags:
+      - auth
+  /api/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a file (images and videos) and automatically send it for
+        ML processing. Available for both authenticated and anonymous users with rate
+        limiting
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - default: gaussian
+        description: Type of blur to apply
+        enum:
+        - gaussian
+        - motion
+        - pixelate
+        in: formData
+        name: blur_type
+        type: string
+      - default: 5
+        description: Effect intensity (1-10)
+        in: formData
+        maximum: 10
+        minimum: 1
+        name: intensity
+        type: integer
+      - description: Comma-separated list of objects to blur
+        example: '"face,person,car"'
+        in: formData
+        name: object_types
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: File uploaded and processing started
+          schema:
+            allOf:
+            - $ref: '#/definitions/internal.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal.File'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload and process file
+      tags:
+      - files
+  /api/user/profile:
+    get:
+      description: Get current user profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/internal.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal.User'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - user
+  /api/user/profile/update:
+    put:
+      consumes:
+      - application/json
+      description: Update user profile information (name, email, password)
+      parameters:
+      - description: Profile update data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/internal.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal.User'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - user
+  /api/user/stats:
+    get:
+      description: Get detailed statistics about user's files, uploads and processing
+        status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/internal.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal.UserStats'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user statistics
+      tags:
+      - user
+  /health:
+    get:
+      description: Check system health including database connection, ML service and
+        file system stats
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/internal.ErrorResponse'
+      summary: Health check
+      tags:
+      - system
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

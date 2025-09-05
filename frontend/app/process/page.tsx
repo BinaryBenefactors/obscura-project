@@ -407,9 +407,48 @@ const pollStatus = async (fileId: string) => {
   };
 
   useEffect(() => {
+    // Курсор и его обработчики
+    const cursor = document.querySelector(".cursor");
+    const cursorFollower = document.querySelector(".cursor-follower");
+    let cursorX = 0;
+    let cursorY = 0;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      cursorX = e.clientX;
+      cursorY = e.clientY;
+
+      if (cursor) {
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+
+      if (cursorFollower) {
+        cursorFollower.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+    };
+
+    const handleMouseDown = () => {
+      cursor?.classList.add("active");
+    };
+
+    const handleMouseUp = () => {
+      cursor?.classList.remove("active");
+    };
+
+    // Добавление обработчиков событий мыши
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    // Показать курсоры
+    if (cursor) cursor.style.opacity = "1";
+    if (cursorFollower) cursorFollower.style.opacity = "1";
+
+    // Загрузка файлов при аутентификации
     if (isAuthenticated) {
       fetchFiles();
     }
+
+    // Создание частиц
     const createParticles = () => {
       const particlesContainer = document.getElementById("particles");
       if (!particlesContainer) return;
@@ -425,10 +464,19 @@ const pollStatus = async (fileId: string) => {
     };
 
     createParticles();
+
+    // Функция очистки
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
   }, [isAuthenticated]);
 
   return (
     <div className="min-h-screen bg-black relative">
+      <div className="cursor"></div>
+      <div className="cursor-follower"></div>
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
       <div className="particles absolute top-0 left-0 w-full h-full overflow-hidden z-10" id="particles"></div>
 

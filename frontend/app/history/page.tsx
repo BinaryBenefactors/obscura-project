@@ -191,25 +191,104 @@ export default function HistoryPage() {
 
   // Загрузка файлов и статистики при монтировании
   useEffect(() => {
+    // Функции для аутентификации
     if (isAuthenticated && token) {
-      fetchFiles()
-      fetchStats()
+      fetchFiles();
+      fetchStats();
     }
-    const createParticles = () => {
-      const particlesContainer = document.getElementById("particles")
-      if (!particlesContainer) return
 
-      for (let i = 0; i < 30; i++) {
-        const particle = document.createElement("div")
-        particle.className = "particle"
-        particle.style.left = Math.random() * 100 + "%"
-        particle.style.animationDelay = Math.random() * 15 + "s"
-        particle.style.animationDuration = Math.random() * 10 + 10 + "s"
-        particlesContainer.appendChild(particle)
+    // Функции для курсора
+    const cursor = document.querySelector(".cursor");
+    const cursorFollower = document.querySelector(".cursor-follower");
+    let cursorX = 0;
+    let cursorY = 0;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      cursorX = e.clientX;
+      cursorY = e.clientY;
+
+      if (cursor) {
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
       }
-    }
-    createParticles()
-  }, [isAuthenticated, token])
+
+      if (cursorFollower) {
+        cursorFollower.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+    };
+
+    const handleMouseDown = () => {
+      cursor?.classList.add("active");
+    };
+
+    const handleMouseUp = () => {
+      cursor?.classList.remove("active");
+    };
+
+    // Функция для создания частиц (объединенная версия)
+    const createParticles = () => {
+      const particlesContainer = document.getElementById("particles");
+      if (!particlesContainer) return;
+
+      const particleCount = 30;
+
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement("div");
+        particle.className = "particle";
+        particle.style.left = Math.random() * 100 + "%";
+        particle.style.animationDelay = Math.random() * 20 + "s";
+        particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+        particle.style.width = Math.random() * 4 + 1 + "px";
+        particle.style.height = particle.style.width;
+        particle.style.animation = `particle-up ${particle.style.animationDuration} linear infinite`;
+        particlesContainer.appendChild(particle);
+      }
+    };
+
+    // Функция для скролла
+    const handleScroll = () => {
+      const header = document.getElementById("header");
+      if (header) {
+        if (window.scrollY > 50) {
+          header.classList.add("scrolled");
+        } else {
+          header.classList.remove("scrolled");
+        }
+      }
+    };
+
+    // Функция для toggle-кнопок
+    const setupToggleButtons = () => {
+      document.querySelectorAll(".toggle-group").forEach((group) => {
+        const buttons = group.querySelectorAll(".toggle-btn");
+        buttons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            buttons.forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+          });
+        });
+      });
+    };
+
+    // Инициализация
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("scroll", handleScroll);
+    
+    createParticles();
+    setupToggleButtons();
+
+    if (cursor) cursor.style.opacity = "1";
+    if (cursorFollower) cursorFollower.style.opacity = "1";
+
+    // Очистка
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isAuthenticated, token]); // Добавлены зависимости
 
   // Обработка переключения на регистрацию
   const handleSwitchToRegister = () => {
@@ -225,6 +304,9 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-black relative">
+      <div className="cursor"></div>
+      <div className="cursor-follower"></div>
+
       {/* Background Animation */}
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
       <div className="particles absolute top-0 left-0 w-full overflow-hidden h-full z-10" id="particles"></div>

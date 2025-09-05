@@ -1,8 +1,9 @@
 import type React from "react";
 import type { Metadata } from "next";
-import { Geist, Manrope } from "next/font/google";
+import { Geist, Manrope, Mitr } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthContext";
+
 
 const geist = Geist({
   subsets: ["latin"],
@@ -14,6 +15,13 @@ const manrope = Manrope({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-manrope",
+});
+
+const mitr = Mitr({
+  weight: ['200', '300', '400', '500', '600', '700'], // Укажите нужные веса
+  subsets: ['latin'], // Или 'latin-ext', если нужно
+  display: 'swap', // Оптимизация загрузки
+  variable: '--font-mitr',
 });
 
 export const metadata: Metadata = {
@@ -29,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${geist.variable} ${manrope.variable} antialiased`}>
+    <html lang="ru" className={`${geist.variable} ${manrope.variable} ${mitr.variable} antialiased`}>
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>

@@ -479,6 +479,27 @@
     z-index: 1;
   }
 
+  .ui-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+    opacity: 1;
+  }
+
+  input::placeholder {
+    color: rgba(255, 255, 255, 0.7) !important;
+    opacity: 1 !important;
+  }
+
+  input::-webkit-input-placeholder { /* Для Chrome/Safari */
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+  input::-moz-placeholder { /* Для Firefox */
+    color: rgba(255, 255, 255, 0.7) !important;
+    opacity: 1 !important;
+  }
+  input:-ms-input-placeholder { /* Для Edge */
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+
   .particle {
     position: absolute;
     width: 2px;

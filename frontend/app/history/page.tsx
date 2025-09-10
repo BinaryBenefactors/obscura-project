@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Download, TrendingUp, Calendar, CircleX, FileImage, FileVideo, ArrowLeft, Trash, Eye } from "lucide-react"
+import { Camera, Download, TrendingUp, Calendar, CircleX, FileImage, FileVideo, ArrowLeft, Trash, Eye, User, Settings, LogOut, ChevronDown, ChevronUp } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/AuthContext"
 import { LoginModal } from "@/components/login-modal"
 import { RegistrationModal } from "@/components/registration-modal"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-const API_BASE = "http://localhost:8080"
+
+const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
 export default function HistoryPage() {
   const { token, isAuthenticated, user, logout } = useAuth()
@@ -24,6 +26,8 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
+  const [open, setOpen] = useState(false)
+
 
   // Загрузка списка файлов
   const fetchFiles = async () => {
@@ -33,7 +37,7 @@ export default function HistoryPage() {
     }
     try {
       setLoading(true)
-      const res = await fetch(`${API_BASE}/api/files`, {
+      const res = await fetch(`${API_LINK}/api/files`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -57,7 +61,7 @@ export default function HistoryPage() {
   const fetchStats = async () => {
     if (!isAuthenticated || !token) return
     try {
-      const res = await fetch(`${API_BASE}/api/user/stats`, {
+      const res = await fetch(`${API_LINK}/api/user/stats`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -83,7 +87,7 @@ export default function HistoryPage() {
   // Скачивание файла
   const handleDownload = async (fileId: string, type: "original" | "processed") => {
     try {
-      const res = await fetch(`${API_BASE}/api/files/${fileId}?type=${type}`, {
+      const res = await fetch(`${API_LINK}/api/files/${fileId}?type=${type}`, {
         method: "GET",
         headers: isAuthenticated && token ? { Authorization: `Bearer ${token}` } : undefined,
       })
@@ -119,7 +123,7 @@ export default function HistoryPage() {
   const handleDelete = async (fileId: string) => {
     if (!isAuthenticated || !token) return
     try {
-      const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+      const res = await fetch(`${API_LINK}/api/files/${fileId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -191,25 +195,104 @@ export default function HistoryPage() {
 
   // Загрузка файлов и статистики при монтировании
   useEffect(() => {
+    // Функции для аутентификации
     if (isAuthenticated && token) {
-      fetchFiles()
-      fetchStats()
+      fetchFiles();
+      fetchStats();
     }
-    const createParticles = () => {
-      const particlesContainer = document.getElementById("particles")
-      if (!particlesContainer) return
 
-      for (let i = 0; i < 30; i++) {
-        const particle = document.createElement("div")
-        particle.className = "particle"
-        particle.style.left = Math.random() * 100 + "%"
-        particle.style.animationDelay = Math.random() * 15 + "s"
-        particle.style.animationDuration = Math.random() * 10 + 10 + "s"
-        particlesContainer.appendChild(particle)
+    // Функции для курсора
+    const cursor = document.querySelector(".cursor");
+    const cursorFollower = document.querySelector(".cursor-follower");
+    let cursorX = 0;
+    let cursorY = 0;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      cursorX = e.clientX;
+      cursorY = e.clientY;
+
+      if (cursor) {
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
       }
-    }
-    createParticles()
-  }, [isAuthenticated, token])
+
+      if (cursorFollower) {
+        cursorFollower.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+    };
+
+    const handleMouseDown = () => {
+      cursor?.classList.add("active");
+    };
+
+    const handleMouseUp = () => {
+      cursor?.classList.remove("active");
+    };
+
+    // Функция для создания частиц (объединенная версия)
+    const createParticles = () => {
+      const particlesContainer = document.getElementById("particles");
+      if (!particlesContainer) return;
+
+      const particleCount = 30;
+
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement("div");
+        particle.className = "particle";
+        particle.style.left = Math.random() * 100 + "%";
+        particle.style.animationDelay = Math.random() * 20 + "s";
+        particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+        particle.style.width = Math.random() * 4 + 1 + "px";
+        particle.style.height = particle.style.width;
+        particle.style.animation = `particle-up ${particle.style.animationDuration} linear infinite`;
+        particlesContainer.appendChild(particle);
+      }
+    };
+
+    // Функция для скролла
+    const handleScroll = () => {
+      const header = document.getElementById("header");
+      if (header) {
+        if (window.scrollY > 50) {
+          header.classList.add("scrolled");
+        } else {
+          header.classList.remove("scrolled");
+        }
+      }
+    };
+
+    // Функция для toggle-кнопок
+    const setupToggleButtons = () => {
+      document.querySelectorAll(".toggle-group").forEach((group) => {
+        const buttons = group.querySelectorAll(".toggle-btn");
+        buttons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            buttons.forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+          });
+        });
+      });
+    };
+
+    // Инициализация
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("scroll", handleScroll);
+    
+    createParticles();
+    setupToggleButtons();
+
+    if (cursor) cursor.style.opacity = "1";
+    if (cursorFollower) cursorFollower.style.opacity = "1";
+
+    // Очистка
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isAuthenticated, token]); // Добавлены зависимости
 
   // Обработка переключения на регистрацию
   const handleSwitchToRegister = () => {
@@ -225,6 +308,9 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-black relative">
+      <div className="cursor"></div>
+      <div className="cursor-follower"></div>
+
       {/* Background Animation */}
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
       <div className="particles absolute top-0 left-0 w-full overflow-hidden h-full z-10" id="particles"></div>
@@ -249,42 +335,83 @@ export default function HistoryPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isAuthenticated ? (
-                <>
-                  <span className="font-manrope text-white/80">
-                    Привет, {user?.name || user?.email || "Пользователь"}!
-                  </span>
-                  <Button
-                    variant="ghost"
-                    onClick={logout}
-                    className="font-manrope text-white hover:bg-white/10"
-                  >
-                    Выйти
+            {isAuthenticated && (
+              <Link href="/process" className="text-white/80 hover:text-white transition-colors relative group">
+                  <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Обработать
                   </Button>
-                </>
-              ) : (
-                <>
-                  <LoginModal
-                    open={showLoginModal}
-                    onOpenChange={setShowLoginModal}
-                    onSwitchToRegister={handleSwitchToRegister}
+              </Link>
+            )}
+            {isAuthenticated ? (
+              <DropdownMenu open={open} onOpenChange={setOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
                   >
-                    <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
-                      Войти
-                    </Button>
-                  </LoginModal>
-                  <RegistrationModal
-                    open={showRegistrationModal}
-                    onOpenChange={setShowRegistrationModal}
-                    onSwitchToLogin={handleSwitchToLogin}
-                  >
-                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
-                      Регистрация
-                    </Button>
-                  </RegistrationModal>
-                </>
-              )}
-            </div>
+                    <User className="h-4 w-4" />
+                    {user?.name || user?.email || "Пользователь"}
+                    {open ? (
+                      <ChevronUp className="h-4 w-4 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56 h-48 z-60">
+                  <div>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-4 pl-3">
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={logout}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      style={{ fontSize: "17px" }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <LoginModal
+                  open={showLoginModal}
+                  onOpenChange={setShowLoginModal}
+                  onSwitchToRegister={handleSwitchToRegister}
+                >
+                  <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
+                    Войти
+                  </Button>
+                </LoginModal>
+                <RegistrationModal
+                  open={showRegistrationModal}
+                  onOpenChange={setShowRegistrationModal}
+                  onSwitchToLogin={handleSwitchToLogin}
+                >
+                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
+                    Регистрация
+                  </Button>
+                </RegistrationModal>
+              </>
+            )}
+          </div>
           </div>
         </div>
       </header>

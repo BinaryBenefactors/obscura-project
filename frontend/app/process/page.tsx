@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RegistrationModal } from "@/components/registration-modal";
 import { LoginModal } from "@/components/login-modal";
-import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock } from "lucide-react";
+import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock, User, LogOut, ChevronDown, ChevronUp  } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
 
 const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
@@ -127,6 +129,8 @@ export default function ProcessPage() {
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   const [fileStatus, setFileStatus] = useState<string>("");
   const { token, isAuthenticated, user, logout } = useAuth();
+  const [open, setOpen] = useState(false)
+
 
   const objectCategories = {
     people: ["лицо", "человек"],
@@ -407,9 +411,48 @@ const pollStatus = async (fileId: string) => {
   };
 
   useEffect(() => {
+    // Курсор и его обработчики
+    const cursor = document.querySelector(".cursor");
+    const cursorFollower = document.querySelector(".cursor-follower");
+    let cursorX = 0;
+    let cursorY = 0;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      cursorX = e.clientX;
+      cursorY = e.clientY;
+
+      if (cursor) {
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+
+      if (cursorFollower) {
+        cursorFollower.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+      }
+    };
+
+    const handleMouseDown = () => {
+      cursor?.classList.add("active");
+    };
+
+    const handleMouseUp = () => {
+      cursor?.classList.remove("active");
+    };
+
+    // Добавление обработчиков событий мыши
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    // Показать курсоры
+    if (cursor) cursor.style.opacity = "1";
+    if (cursorFollower) cursorFollower.style.opacity = "1";
+
+    // Загрузка файлов при аутентификации
     if (isAuthenticated) {
       fetchFiles();
     }
+
+    // Создание частиц
     const createParticles = () => {
       const particlesContainer = document.getElementById("particles");
       if (!particlesContainer) return;
@@ -425,10 +468,19 @@ const pollStatus = async (fileId: string) => {
     };
 
     createParticles();
+
+    // Функция очистки
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
   }, [isAuthenticated]);
 
   return (
     <div className="min-h-screen bg-black relative">
+      <div className="cursor"></div>
+      <div className="cursor-follower"></div>
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
       <div className="particles absolute top-0 left-0 w-full h-full overflow-hidden z-10" id="particles"></div>
 
@@ -449,50 +501,83 @@ const pollStatus = async (fileId: string) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isAuthenticated && (
-                <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
-                   <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      История
-                    </Button>
-                </Link>
-              )}
-              {isAuthenticated ? (
-                <>
-                  <span className="font-manrope text-white/80">
-                    Привет, {user?.name || user?.email || "Пользователь"}!
-                  </span>
+            {isAuthenticated && (
+              <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
+                  <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    История
+                  </Button>
+              </Link>
+            )}
+            {isAuthenticated ? (
+              <DropdownMenu open={open} onOpenChange={setOpen}>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    onClick={logout}
-                    className="font-manrope text-white hover:bg-white/10"
+                    variant="outline"
+                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
                   >
-                    Выйти
-                  </Button>                     
-                </>
-              ) : (
-                <>
-                  <LoginModal
-                    open={showLoginModal}
-                    onOpenChange={setShowLoginModal}
-                    onSwitchToRegister={handleSwitchToRegister}
-                  >
-                    <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
-                      Войти
-                    </Button>
-                  </LoginModal>
-                  <RegistrationModal
-                    open={showRegistrationModal}
-                    onOpenChange={setShowRegistrationModal}
-                    onSwitchToLogin={handleSwitchToLogin}
-                  >
-                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
-                      Регистрация
-                    </Button>
-                  </RegistrationModal>
-                </>
-              )}
-            </div>
+                    <User className="h-4 w-4" />
+                    {user?.name || user?.email || "Пользователь"}
+                    {open ? (
+                      <ChevronUp className="h-4 w-4 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56 h-48 z-2000">
+                  <div>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-4 pl-3">
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={logout}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      style={{ fontSize: "17px" }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <LoginModal
+                  open={showLoginModal}
+                  onOpenChange={setShowLoginModal}
+                  onSwitchToRegister={handleSwitchToRegister}
+                >
+                  <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
+                    Войти
+                  </Button>
+                </LoginModal>
+                <RegistrationModal
+                  open={showRegistrationModal}
+                  onOpenChange={setShowRegistrationModal}
+                  onSwitchToLogin={handleSwitchToLogin}
+                >
+                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
+                    Регистрация
+                  </Button>
+                </RegistrationModal>
+              </>
+            )}
+          </div>
           </div>
         </div>
       </header>
@@ -781,57 +866,6 @@ const pollStatus = async (fileId: string) => {
                 </div>
               </CardContent>
             </Card>
-            {isAuthenticated && files.length > 0 && (
-              <Card className="bg-white/5 backdrop-blur-sm border-white/10">
-                <CardHeader>
-                  <CardTitle className="font-geist text-white text-xl">Ваши файлы</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {files.map((file) => (
-                      <li key={file.id} className="flex justify-between items-center">
-                        <div className="flex flex-col">
-                          <span className="font-manrope text-white text-sm">{file.original_name}</span>
-                          <span className="font-manrope text-xs text-white/60">
-                            {file.status === "completed" && "✅ Завершено"}
-                            {file.status === "processing" && "⏳ Обрабатывается"}
-                            {file.status === "failed" && `❌ Ошибка: ${file.error_message || "Неизвестная ошибка"}`}
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          {file.status === "completed" && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => handleDownload(file.id, "original")}
-                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                              >
-                                Оригинал
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleDownload(file.id, "processed")}
-                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                              >
-                                Обработанный
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(file.id)}
-                            className="font-manrope"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

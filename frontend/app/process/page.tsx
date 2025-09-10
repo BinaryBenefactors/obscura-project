@@ -235,7 +235,7 @@ const handleProcess = async () => {
 
   const formData = new FormData();
   formData.append("file", uploadedFile);
-  formData.append("blur_type", blurType === "blur" ? "gaussian" : blurType);
+  formData.append("blur_type", blurType);
   formData.append("intensity", Math.round(blurIntensity[0] / 10).toString());
   formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
 
@@ -770,15 +770,9 @@ const pollStatus = async (fileId: string) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-black/80 backdrop-blur-lg border-white/20 shadow-2xl">
-                      <SelectItem value="blur" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Размытие
-                      </SelectItem>
-                      <SelectItem value="pixelate" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Пикселизация
-                      </SelectItem>
-                      <SelectItem value="mask" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Цветная маска
-                      </SelectItem>
+                      <SelectItem value="gaussian" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Гауссово размытие</SelectItem>
+                      <SelectItem value="motion" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Движение</SelectItem>
+                      <SelectItem value="pixelate" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Пикселизация</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

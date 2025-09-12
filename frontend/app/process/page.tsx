@@ -130,6 +130,7 @@ export default function ProcessPage() {
   const [fileStatus, setFileStatus] = useState<string>("");
   const { token, isAuthenticated, user, logout } = useAuth();
   const [open, setOpen] = useState(false)
+  const [progress, setProgress] = useState(0);
 
 
   const objectCategories = {
@@ -232,12 +233,28 @@ const handleProcess = async () => {
 
   setProcessing(true);
   setFileStatus("⏳ Загрузка...");
+  setProgress(0); // Сбрасываем прогресс
 
   const formData = new FormData();
   formData.append("file", uploadedFile);
   formData.append("blur_type", blurType);
   formData.append("intensity", Math.round(blurIntensity[0] / 10).toString());
   formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
+
+  // Запускаем эмуляцию прогресса
+  let progress = 0;
+  let progressInterval: NodeJS.Timeout | null = null;
+  if (!isAuthenticated) {
+    progressInterval = setInterval(() => {
+      if (progress < 90) {
+        progress += 20;
+        setProgress(progress);
+        setFileStatus(`⏳ Обрабатывается... ${progress}%`);
+      } else {
+        setFileStatus("⏳ Финальная обработка...");
+      }
+    }, 900); // 4.5 секунды до 90%
+  }
 
   try {
     const res = await fetch(`${API_LINK}/api/upload`, {
@@ -276,24 +293,26 @@ const handleProcess = async () => {
       pollStatus(fileId);
       fetchFiles();
     } else {
-      // Эмуляция прогресса для анонимных пользователей
-      setFileStatus("⏳ Обрабатывается...");
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 20;
-        setFileStatus(`⏳ Обрабатывается... ${progress}%`);
-        if (progress >= 100) {
-          clearInterval(progressInterval);
-          setFileStatus("✅ Обработка завершена!");
-          setCurrentFileId(fileId);
-        }
-      }, 900); // ~4.5 секунды
+      // Для анонимных пользователей ждём ответа и обновляем статус
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      setProgress(100);
+      setFileStatus("✅ Обработка завершена!");
+      setCurrentFileId(fileId);
     }
   } catch (error: any) {
     console.error("Ошибка загрузки:", error);
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+    setProgress(0);
     setFileStatus(`❌ Ошибка: ${error.message || "Не удалось загрузить файл"}`);
   } finally {
     setProcessing(false);
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
   }
 };
 
@@ -306,7 +325,7 @@ const pollStatus = async (fileId: string) => {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
-      console.error("Polling error response:", error, "Status:", res.status); // Логируем ошибку
+      console.error("Polling error response:", error, "Status:", res.status);
       if (res.status === 401 && isAuthenticated) {
         alert("Сессия истекла, пожалуйста, войдите снова");
         logout();
@@ -319,23 +338,29 @@ const pollStatus = async (fileId: string) => {
     }
 
     const { data } = await res.json();
-    console.log("Polling response:", data); // Логируем ответ
+    console.log("Polling response:", data);
     if (!data?.status) {
       throw new Error("Статус файла не получен");
     }
 
-    setFileStatus(data.status);
+    setProgress(data.status === "completed" ? 100 : data.status === "failed" ? 0 : Math.min(90, progress));
+    setFileStatus(
+      data.status === "completed"
+        ? "✅ Обработка завершена!"
+        : data.status === "failed"
+        ? `❌ Ошибка: ${data.error_message || "Неизвестная ошибка"}`
+        : "⏳ Финальная обработка..."
+    );
     if (data.status === "completed") {
-      setFileStatus("✅ Обработка завершена!");
       setCurrentFileId(fileId);
     } else if (data.status === "failed") {
-      setFileStatus(`❌ Ошибка: ${data.error_message || "Неизвестная ошибка"}`);
       setCurrentFileId(null);
     } else {
       setTimeout(() => pollStatus(fileId), 2500);
     }
   } catch (error: any) {
     console.error("Ошибка polling:", error);
+    setProgress(0);
     setFileStatus(`❌ Ошибка: ${error.message || "Не удалось проверить статус"}`);
     setCurrentFileId(null);
   }
@@ -814,8 +839,8 @@ const pollStatus = async (fileId: string) => {
                 {processing && (
                   <div className="w-full bg-white/10 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full animate-pulse"
-                      style={{ width: "60%" }}
+                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${progress}%` }}
                     ></div>
                   </div>
                 )}

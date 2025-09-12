@@ -36,3 +36,8 @@ url = 'https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11m
 file_path = os.path.join('models', 'yolov11m-face.pt')
 
 download_file(url, file_path)
+
+url = 'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m.pt'
+file_path = os.path.join('models', 'yolo11m.pt')
+
+download_file(url, file_path)

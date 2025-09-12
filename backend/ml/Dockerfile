@@ -31,3 +31,7 @@ RUN pip install --upgrade pip && \
 # Установка переменных окружения для OpenCV
 ENV QT_QPA_PLATFORM=offscreen
 ENV OPENCV_IO_ENABLE_OPENEXR=1
+
+# Загрузка моделей при сборке образа
+COPY load_model.py .
+RUN python load_model.py && rm load_model.py

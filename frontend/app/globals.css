@@ -187,6 +187,7 @@
     position: fixed;
     top: 0;
     left: 0;
+    margin: 0 0 0 -6px;
     pointer-events: none;
     z-index: 10000;
     mix-blend-mode: difference;

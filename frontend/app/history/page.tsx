@@ -4,11 +4,13 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Download, TrendingUp, Calendar, CircleX, FileImage, FileVideo, ArrowLeft, Trash, Eye } from "lucide-react"
+import { Camera, Download, TrendingUp, Calendar, CircleX, FileImage, FileVideo, ArrowLeft, Trash, Eye, User, Settings, LogOut, ChevronDown, ChevronUp } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/AuthContext"
 import { LoginModal } from "@/components/login-modal"
 import { RegistrationModal } from "@/components/registration-modal"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
 
 const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
@@ -24,6 +26,8 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
+  const [open, setOpen] = useState(false)
+
 
   // Загрузка списка файлов
   const fetchFiles = async () => {
@@ -331,42 +335,83 @@ export default function HistoryPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isAuthenticated ? (
-                <>
-                  <span className="font-manrope text-white/80">
-                    Привет, {user?.name || user?.email || "Пользователь"}!
-                  </span>
-                  <Button
-                    variant="ghost"
-                    onClick={logout}
-                    className="font-manrope text-white hover:bg-white/10"
-                  >
-                    Выйти
+            {isAuthenticated && (
+              <Link href="/process" className="text-white/80 hover:text-white transition-colors relative group">
+                  <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Обработать
                   </Button>
-                </>
-              ) : (
-                <>
-                  <LoginModal
-                    open={showLoginModal}
-                    onOpenChange={setShowLoginModal}
-                    onSwitchToRegister={handleSwitchToRegister}
+              </Link>
+            )}
+            {isAuthenticated ? (
+              <DropdownMenu open={open} onOpenChange={setOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
                   >
-                    <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
-                      Войти
-                    </Button>
-                  </LoginModal>
-                  <RegistrationModal
-                    open={showRegistrationModal}
-                    onOpenChange={setShowRegistrationModal}
-                    onSwitchToLogin={handleSwitchToLogin}
-                  >
-                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
-                      Регистрация
-                    </Button>
-                  </RegistrationModal>
-                </>
-              )}
-            </div>
+                    <User className="h-4 w-4" />
+                    {user?.name || user?.email || "Пользователь"}
+                    {open ? (
+                      <ChevronUp className="h-4 w-4 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56 h-48 z-60">
+                  <div>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-4 pl-3">
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={logout}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      style={{ fontSize: "17px" }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <LoginModal
+                  open={showLoginModal}
+                  onOpenChange={setShowLoginModal}
+                  onSwitchToRegister={handleSwitchToRegister}
+                >
+                  <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
+                    Войти
+                  </Button>
+                </LoginModal>
+                <RegistrationModal
+                  open={showRegistrationModal}
+                  onOpenChange={setShowRegistrationModal}
+                  onSwitchToLogin={handleSwitchToLogin}
+                >
+                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
+                    Регистрация
+                  </Button>
+                </RegistrationModal>
+              </>
+            )}
+          </div>
           </div>
         </div>
       </header>

@@ -12,33 +12,43 @@ services:
       - JWT_SECRET=your-secret-key-change-in-production
       - UPLOAD_PATH=/app/uploads
       - MAX_FILE_SIZE=52428800  # 50MB
-      - ML_SERVICE_URL=http://ml:5000
+      - ML_SERVICE_URL=http://ml:8000
       - ML_SERVICE_TIMEOUT=300  # 5 minutes
-      - ML_SERVICE_ENABLED=false
+      - ML_SERVICE_ENABLED=true
     volumes:
       - uploads:/app/uploads
     ports:
       - "8080:8080"
     depends_on:
       - db
-      # - ml
+      - ml
     networks:
       - app-network
     restart: unless-stopped
 
-  # ml:
-  #   build: ./backend/ml
-  #   environment:
-  #     - MODEL_PATH=/models/your_model
-  #     - UPLOAD_PATH=/app/uploads
-  #   volumes:
-  #     - uploads:/app/uploads  # Общая папка с backend для доступа к файлам
-  #     - models:/models
-  #   ports:
-  #     - "5000:5000"
-  #   networks:
-  #     - app-network
-  #   restart: unless-stopped
+  ml:
+    build: 
+      context: ./backend/ml
+      dockerfile: Dockerfile
+    container_name: ml-fastapi-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/ml/app:/app/app
+      - ./backend/ml/.env:/app/.env:ro
+      - models:/app/models
+      - uploads:/app/uploads
+    networks:
+      - app-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   frontend:
     build: 
@@ -63,7 +73,7 @@ services:
     depends_on:
       - backend-app
       - frontend
-      # - ml
+      - ml
     networks:
       - app-network
 

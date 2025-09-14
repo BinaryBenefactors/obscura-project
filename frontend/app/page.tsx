@@ -6,13 +6,17 @@ import { RegistrationModal } from "@/components/registration-modal"
 import { LoginModal } from "@/components/login-modal"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { User, Settings, LogOut, ChevronDown, ChevronUp } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/components/AuthContext";
+import CameraIcon from "@/components/ui/camera-icon";
 
 export default function HomePage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
   const { user, logout, isAuthenticated } = useAuth();
   const [effectIntensity, setEffectIntensity] = useState(5);
+  const [open, setOpen] = useState(false)
 
   const handleSwitchToLogin = () => {
     setShowRegistrationModal(false)
@@ -147,10 +151,7 @@ export default function HomePage() {
         <div className="header-container">
           <Link href="#" className="logo">
             <div className="logo-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
+              <CameraIcon />
             </div>
             <span className="logo-text">Obscura</span>
           </Link>
@@ -169,18 +170,51 @@ export default function HomePage() {
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
-              <>
-                <span className="font-manrope text-white/80">
-                  Привет, {user?.name || user?.email || "Пользователь"}!
-                </span>
-                <Button
-                  variant="ghost"
-                  onClick={logout}
-                  className="font-manrope text-white hover:bg-white/10"
-                >
-                  Выйти
-                </Button>                     
-              </>
+              <DropdownMenu open={open} onOpenChange={setOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
+                  >
+                    <User className="h-4 w-4" />
+                    {user?.name || user?.email || "Пользователь"}
+                    {open ? (
+                      <ChevronUp className="h-4 w-4 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56 h-48 z-2000">
+                  <div>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-4 pl-3">
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={logout}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      style={{ fontSize: "17px" }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <>
                 <LoginModal
@@ -426,10 +460,7 @@ export default function HomePage() {
             <div className="footer-brand">
               <div className="footer-logo">
                 <div className="logo-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
+                  <CameraIcon />
                 </div>
                 <span className="logo-text">Obscura</span>
               </div>

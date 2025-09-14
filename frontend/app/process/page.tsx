@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RegistrationModal } from "@/components/registration-modal";
 import { LoginModal } from "@/components/login-modal";
-import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock } from "lucide-react";
+import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock, User, LogOut, ChevronDown, ChevronUp  } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
 
 const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
@@ -115,7 +117,7 @@ export default function ProcessPage() {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [blurIntensity, setBlurIntensity] = useState([50]);
-  const [blurType, setBlurType] = useState("blur");
+  const [blurType, setBlurType] = useState("gaussian");
   const [processing, setProcessing] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
@@ -127,6 +129,9 @@ export default function ProcessPage() {
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   const [fileStatus, setFileStatus] = useState<string>("");
   const { token, isAuthenticated, user, logout } = useAuth();
+  const [open, setOpen] = useState(false)
+  const [progress, setProgress] = useState(0);
+
 
   const objectCategories = {
     people: ["лицо", "человек"],
@@ -228,12 +233,28 @@ const handleProcess = async () => {
 
   setProcessing(true);
   setFileStatus("⏳ Загрузка...");
+  setProgress(0); // Сбрасываем прогресс
 
   const formData = new FormData();
   formData.append("file", uploadedFile);
-  formData.append("blur_type", blurType === "blur" ? "gaussian" : blurType);
+  formData.append("blur_type", blurType);
   formData.append("intensity", Math.round(blurIntensity[0] / 10).toString());
   formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
+
+  // Запускаем эмуляцию прогресса
+  let progress = 0;
+  let progressInterval: NodeJS.Timeout | null = null;
+  if (!isAuthenticated) {
+    progressInterval = setInterval(() => {
+      if (progress < 90) {
+        progress += 20;
+        setProgress(progress);
+        setFileStatus(`⏳ Обрабатывается... ${progress}%`);
+      } else {
+        setFileStatus("⏳ Финальная обработка...");
+      }
+    }, 900); // 4.5 секунды до 90%
+  }
 
   try {
     const res = await fetch(`${API_LINK}/api/upload`, {
@@ -272,24 +293,26 @@ const handleProcess = async () => {
       pollStatus(fileId);
       fetchFiles();
     } else {
-      // Эмуляция прогресса для анонимных пользователей
-      setFileStatus("⏳ Обрабатывается...");
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 20;
-        setFileStatus(`⏳ Обрабатывается... ${progress}%`);
-        if (progress >= 100) {
-          clearInterval(progressInterval);
-          setFileStatus("✅ Обработка завершена!");
-          setCurrentFileId(fileId);
-        }
-      }, 900); // ~4.5 секунды
+      // Для анонимных пользователей ждём ответа и обновляем статус
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      setProgress(100);
+      setFileStatus("✅ Обработка завершена!");
+      setCurrentFileId(fileId);
     }
   } catch (error: any) {
     console.error("Ошибка загрузки:", error);
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+    setProgress(0);
     setFileStatus(`❌ Ошибка: ${error.message || "Не удалось загрузить файл"}`);
   } finally {
     setProcessing(false);
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
   }
 };
 
@@ -302,7 +325,7 @@ const pollStatus = async (fileId: string) => {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
-      console.error("Polling error response:", error, "Status:", res.status); // Логируем ошибку
+      console.error("Polling error response:", error, "Status:", res.status);
       if (res.status === 401 && isAuthenticated) {
         alert("Сессия истекла, пожалуйста, войдите снова");
         logout();
@@ -315,23 +338,29 @@ const pollStatus = async (fileId: string) => {
     }
 
     const { data } = await res.json();
-    console.log("Polling response:", data); // Логируем ответ
+    console.log("Polling response:", data);
     if (!data?.status) {
       throw new Error("Статус файла не получен");
     }
 
-    setFileStatus(data.status);
+    setProgress(data.status === "completed" ? 100 : data.status === "failed" ? 0 : Math.min(90, progress));
+    setFileStatus(
+      data.status === "completed"
+        ? "✅ Обработка завершена!"
+        : data.status === "failed"
+        ? `❌ Ошибка: ${data.error_message || "Неизвестная ошибка"}`
+        : "⏳ Финальная обработка..."
+    );
     if (data.status === "completed") {
-      setFileStatus("✅ Обработка завершена!");
       setCurrentFileId(fileId);
     } else if (data.status === "failed") {
-      setFileStatus(`❌ Ошибка: ${data.error_message || "Неизвестная ошибка"}`);
       setCurrentFileId(null);
     } else {
       setTimeout(() => pollStatus(fileId), 2500);
     }
   } catch (error: any) {
     console.error("Ошибка polling:", error);
+    setProgress(0);
     setFileStatus(`❌ Ошибка: ${error.message || "Не удалось проверить статус"}`);
     setCurrentFileId(null);
   }
@@ -497,50 +526,83 @@ const pollStatus = async (fileId: string) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {isAuthenticated && (
-                <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
-                   <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      История
-                    </Button>
-                </Link>
-              )}
-              {isAuthenticated ? (
-                <>
-                  <span className="font-manrope text-white/80">
-                    Привет, {user?.name || user?.email || "Пользователь"}!
-                  </span>
+            {isAuthenticated && (
+              <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
+                  <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    История
+                  </Button>
+              </Link>
+            )}
+            {isAuthenticated ? (
+              <DropdownMenu open={open} onOpenChange={setOpen}>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
-                    onClick={logout}
-                    className="font-manrope text-white hover:bg-white/10"
+                    variant="outline"
+                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
                   >
-                    Выйти
-                  </Button>                     
-                </>
-              ) : (
-                <>
-                  <LoginModal
-                    open={showLoginModal}
-                    onOpenChange={setShowLoginModal}
-                    onSwitchToRegister={handleSwitchToRegister}
-                  >
-                    <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
-                      Войти
-                    </Button>
-                  </LoginModal>
-                  <RegistrationModal
-                    open={showRegistrationModal}
-                    onOpenChange={setShowRegistrationModal}
-                    onSwitchToLogin={handleSwitchToLogin}
-                  >
-                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
-                      Регистрация
-                    </Button>
-                  </RegistrationModal>
-                </>
-              )}
-            </div>
+                    <User className="h-4 w-4" />
+                    {user?.name || user?.email || "Пользователь"}
+                    {open ? (
+                      <ChevronUp className="h-4 w-4 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent align="end" className="w-56 h-48 z-2000">
+                  <div>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-4 pl-3">
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                      <Link href="/dashboard" className="flex items-center">
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={logout}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      style={{ fontSize: "17px" }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <LoginModal
+                  open={showLoginModal}
+                  onOpenChange={setShowLoginModal}
+                  onSwitchToRegister={handleSwitchToRegister}
+                >
+                  <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
+                    Войти
+                  </Button>
+                </LoginModal>
+                <RegistrationModal
+                  open={showRegistrationModal}
+                  onOpenChange={setShowRegistrationModal}
+                  onSwitchToLogin={handleSwitchToLogin}
+                >
+                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
+                    Регистрация
+                  </Button>
+                </RegistrationModal>
+              </>
+            )}
+          </div>
           </div>
         </div>
       </header>
@@ -571,7 +633,7 @@ const pollStatus = async (fileId: string) => {
                   type="file"
                   id="file-upload"
                   className="hidden"
-                  accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,video/mp4,video/avi,video/mov,video/webm,video/mkv,video/wmv,video/flv"
+                  accept="image/jpeg,image/png,image/gif,image/bmp,image/tiff,video/mp4,video/avi,video/mov,video/mkv,video/wmv,video/flv"
                   onChange={handleFileSelect}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
@@ -581,7 +643,7 @@ const pollStatus = async (fileId: string) => {
                       {uploadedFile ? uploadedFile.name : "Перетащите файл или нажмите для выбора"}
                     </p>
                     <p className="font-manrope text-xs text-white/60">
-                      Поддерживаемые форматы: JPG, PNG, GIF, WebP, BMP, TIFF, MP4, AVI, MOV, WebM, MKV, WMV, FLV
+                      Поддерживаемые форматы: JPG, PNG, GIF, BMP, TIFF, MP4, AVI, MOV, MKV, WMV, FLV
                     </p>
                     <p className="font-manrope text-xs text-white/60">Максимум 50 MB</p>
                   </div>
@@ -733,15 +795,9 @@ const pollStatus = async (fileId: string) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-black/80 backdrop-blur-lg border-white/20 shadow-2xl">
-                      <SelectItem value="blur" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Размытие
-                      </SelectItem>
-                      <SelectItem value="pixelate" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Пикселизация
-                      </SelectItem>
-                      <SelectItem value="mask" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">
-                        Цветная маска
-                      </SelectItem>
+                      <SelectItem value="gaussian" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Гауссово размытие</SelectItem>
+                      <SelectItem value="motion" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Движение</SelectItem>
+                      <SelectItem value="pixelate" className="font-manrope text-white hover:bg-white/10 focus:bg-white/10">Пикселизация</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -783,8 +839,8 @@ const pollStatus = async (fileId: string) => {
                 {processing && (
                   <div className="w-full bg-white/10 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full animate-pulse"
-                      style={{ width: "60%" }}
+                      className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${progress}%` }}
                     ></div>
                   </div>
                 )}
@@ -829,57 +885,6 @@ const pollStatus = async (fileId: string) => {
                 </div>
               </CardContent>
             </Card>
-            {isAuthenticated && files.length > 0 && (
-              <Card className="bg-white/5 backdrop-blur-sm border-white/10">
-                <CardHeader>
-                  <CardTitle className="font-geist text-white text-xl">Ваши файлы</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {files.map((file) => (
-                      <li key={file.id} className="flex justify-between items-center">
-                        <div className="flex flex-col">
-                          <span className="font-manrope text-white text-sm">{file.original_name}</span>
-                          <span className="font-manrope text-xs text-white/60">
-                            {file.status === "completed" && "✅ Завершено"}
-                            {file.status === "processing" && "⏳ Обрабатывается"}
-                            {file.status === "failed" && `❌ Ошибка: ${file.error_message || "Неизвестная ошибка"}`}
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          {file.status === "completed" && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => handleDownload(file.id, "original")}
-                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                              >
-                                Оригинал
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleDownload(file.id, "processed")}
-                                className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                              >
-                                Обработанный
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(file.id)}
-                            className="font-manrope"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

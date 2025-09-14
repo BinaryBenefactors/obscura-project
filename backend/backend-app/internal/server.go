@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1156,23 +1157,74 @@ func (s *Server) processWithEmulation(fileID, filePath, mimeType string, options
 	}
 }
 
-// Обработка с помощью ML сервиса (заглушка для будущего)
+// Обработка с помощью ML сервиса
 func (s *Server) processWithMLService(fileID, filePath, mimeType string, options ProcessingOptions, isAnonymous bool) {
 	s.logger.Debug("Processing file %s with ML service", fileID)
 
-	// Подготавливаем запрос к ML сервису
-	request := ProcessingRequest{
+	reqBody := ProcessingRequest{
 		FileID:   fileID,
 		FilePath: filePath,
 		MimeType: mimeType,
 		Options:  options,
 	}
 
-	// TODO: Когда ML будет готов, здесь будет реальный HTTP запрос
-	_ = request
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		s.logger.Error("Failed to marshal request for ML service: %v", err)
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, "ML request marshal error")
+		}
+		return
+	}
 
-	// Пока эмулируем
-	s.processWithEmulation(fileID, filePath, mimeType, options, isAnonymous)
+	client := &http.Client{Timeout: time.Duration(s.config.MLServiceTimeout) * time.Second}
+	url := strings.TrimRight(s.config.MLServiceURL, "/") + "/api/process"
+	resp, err := client.Post(url, "application/json", bytes.NewReader(jsonData))
+	if err != nil {
+		s.logger.Error("ML service request failed: %v", err)
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, "ML service request failed")
+		}
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Error("ML service returned status %d: %s", resp.StatusCode, string(body))
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, fmt.Sprintf("ML service error: %s", strings.TrimSpace(string(body))))
+		}
+		return
+	}
+
+	var mlResp ProcessingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mlResp); err != nil {
+		s.logger.Error("Failed to decode ML service response: %v", err)
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, "Invalid ML service response")
+		}
+		return
+	}
+
+	if !mlResp.Success {
+		if !isAnonymous {
+			s.db.UpdateFileProcessing(fileID, "", 0, StatusFailed, mlResp.ErrorMessage)
+		}
+		return
+	}
+
+	processedName := filepath.Base(mlResp.ProcessedPath)
+	if !isAnonymous {
+		err := s.db.UpdateFileProcessing(fileID, processedName, mlResp.ProcessedSize, StatusCompleted, "")
+		if err != nil {
+			s.logger.Error("Failed to update file processing status for %s: %v", fileID, err)
+		} else {
+			s.logger.Info("File processed successfully with ML service: %s", fileID)
+		}
+	} else {
+		s.logger.Info("Anonymous file processed with ML service: %s", fileID)
+	}
 }
 
 // Проверка доступности ML сервиса

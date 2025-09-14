@@ -93,16 +93,19 @@ func (rl *RateLimiter) IsAllowed(r *http.Request) (bool, int, time.Duration) {
 	// Обновляем время последнего обращения
 	client.LastSeen = now
 
-	// Проверяем лимит ПЕРЕД увеличением счетчика
-	if client.Count >= rl.limit {
+	// Увеличиваем счетчик
+	client.Count++
+
+	// Проверяем лимит ПОСЛЕ увеличения счетчика
+	if client.Count > rl.limit {
 		// Вычисляем время до сброса
 		resetTime := client.FirstSeen.Add(rl.window)
 		waitTime := time.Until(resetTime)
+		// Откатываем счетчик, так как запрос не разрешен
+		client.Count--
 		return false, client.Count, waitTime
 	}
 
-	// Увеличиваем счетчик только если лимит не превышен
-	client.Count++
 	return true, client.Count, 0
 }
 

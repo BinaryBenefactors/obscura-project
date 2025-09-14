@@ -66,7 +66,7 @@ func (d *Database) CreateFile(file *File) error {
 	if err := d.DB.Create(file).Error; err != nil {
 		return err
 	}
-	
+
 	return d.UpdateUserStats(file.UserID, 1, 0, 0, file.FileSize)
 }
 
@@ -101,7 +101,7 @@ func (d *Database) UpdateFileProcessing(id string, processedName string, process
 	if err != nil {
 		return err
 	}
-	
+
 	updates := map[string]interface{}{
 		"status":       status,
 		"processed_at": time.Now(),
@@ -125,11 +125,11 @@ func (d *Database) UpdateFileProcessing(id string, processedName string, process
 	if err := d.DB.Model(&File{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return err
 	}
-	
+
 	// Обновляем статистику пользователя при изменении статуса обработки
 	if file.Status != status {
 		var processedDelta, failedDelta int
-		
+
 		if status == StatusCompleted {
 			processedDelta = 1
 			if file.Status == StatusFailed {
@@ -141,12 +141,12 @@ func (d *Database) UpdateFileProcessing(id string, processedName string, process
 				processedDelta = -1
 			}
 		}
-		
+
 		if processedDelta != 0 || failedDelta != 0 {
 			return d.UpdateUserStats(file.UserID, 0, processedDelta, failedDelta, 0)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -168,23 +168,22 @@ func (d *Database) DeleteFile(id string) error {
 	return d.DB.Delete(&File{}, "id = ?", id).Error
 }
 
-
 // Получение статистики пользователя
 func (d *Database) GetUserStats(userID uint) (*User, error) {
 	user, err := d.GetUserByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	return user, nil
 }
 
 func (d *Database) UpdateUserStats(userID uint, filesDelta int, processedDelta int, failedDelta int, sizeDelta int64) error {
 	return d.DB.Model(&User{}).Where("id = ?", userID).Updates(map[string]interface{}{
-		"total_files":        gorm.Expr("total_files + ?", filesDelta),
-		"total_processed":    gorm.Expr("total_processed + ?", processedDelta),
-		"total_failed":       gorm.Expr("total_failed + ?", failedDelta),
-		"total_size":         gorm.Expr("total_size + ?", sizeDelta),
-		"last_stats_update":  time.Now(),
+		"total_files":       gorm.Expr("total_files + ?", filesDelta),
+		"total_processed":   gorm.Expr("total_processed + ?", processedDelta),
+		"total_failed":      gorm.Expr("total_failed + ?", failedDelta),
+		"total_size":        gorm.Expr("total_size + ?", sizeDelta),
+		"last_stats_update": time.Now(),
 	}).Error
 }

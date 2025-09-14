@@ -10,17 +10,17 @@ import (
 // User модель пользователя
 // @Description User account information
 type User struct {
-	ID        uint      `json:"id" gorm:"primarykey" example:"1"`
-	Email     string    `json:"email" gorm:"uniqueIndex;not null" example:"user@example.com"`
-	Password  string    `json:"-" gorm:"not null"`
-	Name      string    `json:"name" gorm:"not null" example:"John Doe"`
-	TotalFiles        int       `json:"total_files" gorm:"default:0" example:"50"`
-	TotalProcessed    int       `json:"total_processed" gorm:"default:0" example:"45"`
-	TotalFailed       int       `json:"total_failed" gorm:"default:0" example:"5"`
-	TotalSize         int64     `json:"total_size" gorm:"default:0" example:"524288000"`
-	LastStatsUpdate   time.Time `json:"last_stats_update" example:"2024-01-15T09:00:00Z"`
-	CreatedAt time.Time `json:"created_at" example:"2025-01-15T09:00:00Z"`
-	UpdatedAt time.Time `json:"updated_at" example:"2025-01-15T09:00:00Z"`
+	ID              uint      `json:"id" gorm:"primarykey" example:"1"`
+	Email           string    `json:"email" gorm:"uniqueIndex;not null" example:"user@example.com"`
+	Password        string    `json:"-" gorm:"not null"`
+	Name            string    `json:"name" gorm:"not null" example:"John Doe"`
+	TotalFiles      int       `json:"total_files" gorm:"default:0" example:"50"`
+	TotalProcessed  int       `json:"total_processed" gorm:"default:0" example:"45"`
+	TotalFailed     int       `json:"total_failed" gorm:"default:0" example:"5"`
+	TotalSize       int64     `json:"total_size" gorm:"default:0" example:"524288000"`
+	LastStatsUpdate time.Time `json:"last_stats_update" example:"2024-01-15T09:00:00Z"`
+	CreatedAt       time.Time `json:"created_at" example:"2025-01-15T09:00:00Z"`
+	UpdatedAt       time.Time `json:"updated_at" example:"2025-01-15T09:00:00Z"`
 }
 
 // File модель загруженного файла

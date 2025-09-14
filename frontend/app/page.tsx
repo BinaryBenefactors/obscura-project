@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 import { User, Settings, LogOut, ChevronDown, ChevronUp } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/components/AuthContext";
+import CameraIcon from "@/components/ui/camera-icon";
 
 export default function HomePage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -150,10 +151,7 @@ export default function HomePage() {
         <div className="header-container">
           <Link href="#" className="logo">
             <div className="logo-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
+              <CameraIcon />
             </div>
             <span className="logo-text">Obscura</span>
           </Link>
@@ -462,10 +460,7 @@ export default function HomePage() {
             <div className="footer-brand">
               <div className="footer-logo">
                 <div className="logo-icon">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
+                  <CameraIcon />
                 </div>
                 <span className="logo-text">Obscura</span>
               </div>

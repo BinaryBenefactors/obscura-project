@@ -633,7 +633,7 @@ const pollStatus = async (fileId: string) => {
                   type="file"
                   id="file-upload"
                   className="hidden"
-                  accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,video/mp4,video/avi,video/mov,video/webm,video/mkv,video/wmv,video/flv"
+                  accept="image/jpeg,image/png,image/gif,image/bmp,image/tiff,video/mp4,video/avi,video/mov,video/mkv,video/wmv,video/flv"
                   onChange={handleFileSelect}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
@@ -643,7 +643,7 @@ const pollStatus = async (fileId: string) => {
                       {uploadedFile ? uploadedFile.name : "Перетащите файл или нажмите для выбора"}
                     </p>
                     <p className="font-manrope text-xs text-white/60">
-                      Поддерживаемые форматы: JPG, PNG, GIF, WebP, BMP, TIFF, MP4, AVI, MOV, WebM, MKV, WMV, FLV
+                      Поддерживаемые форматы: JPG, PNG, GIF, BMP, TIFF, MP4, AVI, MOV, MKV, WMV, FLV
                     </p>
                     <p className="font-manrope text-xs text-white/60">Максимум 50 MB</p>
                   </div>

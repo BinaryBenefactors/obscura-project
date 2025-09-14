@@ -93,7 +93,7 @@ func (rl *RateLimiter) IsAllowed(r *http.Request) (bool, int, time.Duration) {
 	// Обновляем время последнего обращения
 	client.LastSeen = now
 
-	// Проверяем лимит
+	// Проверяем лимит ПЕРЕД увеличением счетчика
 	if client.Count >= rl.limit {
 		// Вычисляем время до сброса
 		resetTime := client.FirstSeen.Add(rl.window)
@@ -101,7 +101,7 @@ func (rl *RateLimiter) IsAllowed(r *http.Request) (bool, int, time.Duration) {
 		return false, client.Count, waitTime
 	}
 
-	// Увеличиваем счетчик
+	// Увеличиваем счетчик только если лимит не превышен
 	client.Count++
 	return true, client.Count, 0
 }
@@ -116,8 +116,9 @@ func (rl *RateLimiter) cleanup() {
 		now := time.Now()
 
 		for clientID, client := range rl.clients {
-			// Удаляем клиентов, которые не обращались больше 2 часов
-			if now.Sub(client.LastSeen) > 2*time.Hour {
+			// Удаляем клиентов, которые не обращались больше времени окна (24 часа)
+			// Это предотвращает обход блокировки
+			if now.Sub(client.LastSeen) > rl.window {
 				delete(rl.clients, clientID)
 			}
 		}

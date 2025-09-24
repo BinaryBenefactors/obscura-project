@@ -14,6 +14,7 @@ import { LoginModal } from "@/components/login-modal";
 import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock, User, LogOut, ChevronDown, ChevronUp  } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
+import CameraIcon from "@/components/ui/camera-icon";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 
@@ -435,6 +436,18 @@ const pollStatus = async (fileId: string) => {
     }
   };
 
+  function truncateFileName(name: string, maxLength: number) {
+    if (name.length <= maxLength) return name;
+
+    const dotIndex = name.lastIndexOf(".");
+    const extension = dotIndex !== -1 ? name.slice(dotIndex) : "";
+    const baseName = dotIndex !== -1 ? name.slice(0, dotIndex) : name;
+
+    const truncatedBase = baseName.slice(0, maxLength - 4); // оставляем место для "...."
+    return `${truncatedBase}....${extension}`;
+  }
+
+
   useEffect(() => {
     // Курсор и его обработчики
     const cursor = document.querySelector(".cursor");
@@ -517,12 +530,12 @@ const pollStatus = async (fileId: string) => {
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-white to-purple-400 rounded-lg flex items-center justify-center">
-                  <Camera className="w-5 h-5 text-black" />
-                </div>
-                <span className="font-geist font-bold text-xl bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-                  Obscura
-                </span>
+                <Link href="/" className="logo">
+                  <div className="logo-icon">
+                    <CameraIcon />
+                  </div>
+                  <span className="logo-text">Obscura</span>
+                </Link>   
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -640,7 +653,7 @@ const pollStatus = async (fileId: string) => {
                   <div className="flex flex-col items-center gap-4">
                     <Upload className="w-12 h-12 text-purple-400" />
                     <p className="font-manrope text-white">
-                      {uploadedFile ? uploadedFile.name : "Перетащите файл или нажмите для выбора"}
+                      {uploadedFile ? truncateFileName(uploadedFile.name, 20) : "Перетащите файл или нажмите для выбора"}
                     </p>
                     <p className="font-manrope text-xs text-white/60">
                       Поддерживаемые форматы: JPG, PNG, GIF, BMP, TIFF, MP4, AVI, MOV, MKV, WMV, FLV
@@ -855,7 +868,7 @@ const pollStatus = async (fileId: string) => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
+                  <div className="hidden">
                     <Label className="font-manrope text-sm font-medium mb-2 block text-white">Качество</Label>
                     <Select defaultValue="original">
                       <SelectTrigger className="font-manrope bg-white/10 border-white/20 text-white">

@@ -1242,6 +1242,41 @@
     box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
   }
 
+  .space-y-4 {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .space-y-4 > .bg-white\/5 {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Полноэкранный просмотр изображения и видео */
+  .fullscreen-image {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fullscreen-image img,
+  .fullscreen-image video {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+  }
+
+  .fullscreen-image button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+
   /* Responsive */
   @media (max-width: 1024px) {
     .nav {
@@ -1268,6 +1303,11 @@
   @media (max-width: 768px) {
     .hero-title {
       font-size: 3rem;
+    }
+    
+    .cursor,
+    .cursor-follower {
+      display: none;
     }
 
     .features-grid {
@@ -1325,6 +1365,32 @@
     .modal-content button {
       font-size: 0.875rem;
       padding: 0.5rem 1rem;
+    }
+  }
+  @media (max-width: 640px) {
+    .space-y-4 > .bg-white\/5 {
+      padding: 0.75rem;
+    }
+    .space-y-4 > .bg-white\/5 .p-6 {
+      padding: 1rem;
+    }
+    .font-manrope.font-semibold.text-lg {
+      font-size: 1rem;
+    }
+    .text-sm {
+      font-size: 0.75rem;
+    }
+    .flex-wrap.gap-2 {
+      gap: 0.5rem;
+    }
+    .flex-wrap.gap-2 button {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+    }
+    .flex-wrap.gap-2 button svg {
+      width: 0.875rem;
+      height: 0.875rem;
+      margin-right: 0.25rem;
     }
   }
 }

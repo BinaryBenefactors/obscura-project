@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RegistrationModal } from "@/components/registration-modal";
 import { LoginModal } from "@/components/login-modal";
-import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock, User, LogOut, ChevronDown, ChevronUp  } from "lucide-react";
+import { Camera, Upload, Settings, Download, ArrowLeft, Search, Check, Trash, Clock, User, LogOut, ChevronDown, ChevronUp, Menu  } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
 import CameraIcon from "@/components/ui/camera-icon";
@@ -132,6 +132,7 @@ export default function ProcessPage() {
   const { token, isAuthenticated, user, logout } = useAuth();
   const [open, setOpen] = useState(false)
   const [progress, setProgress] = useState(0);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 
   const objectCategories = {
@@ -234,7 +235,7 @@ const handleProcess = async () => {
 
   setProcessing(true);
   setFileStatus("⏳ Загрузка...");
-  setProgress(0); // Сбрасываем прогресс
+  setProgress(0);
 
   const formData = new FormData();
   formData.append("file", uploadedFile);
@@ -242,7 +243,6 @@ const handleProcess = async () => {
   formData.append("intensity", Math.round(blurIntensity[0] / 10).toString());
   formData.append("object_types", selectedObjects.map((obj) => RUS_TO_ENG_MAPPING[obj] || obj).join(","));
 
-  // Запускаем эмуляцию прогресса
   let progress = 0;
   let progressInterval: NodeJS.Timeout | null = null;
   if (!isAuthenticated) {
@@ -254,7 +254,7 @@ const handleProcess = async () => {
       } else {
         setFileStatus("⏳ Финальная обработка...");
       }
-    }, 900); // 4.5 секунды до 90%
+    }, 900);
   }
 
   try {
@@ -294,7 +294,6 @@ const handleProcess = async () => {
       pollStatus(fileId);
       fetchFiles();
     } else {
-      // Для анонимных пользователей ждём ответа и обновляем статус
       if (progressInterval) {
         clearInterval(progressInterval);
       }
@@ -314,6 +313,17 @@ const handleProcess = async () => {
     if (progressInterval) {
       clearInterval(progressInterval);
     }
+    const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
+    setUploadedFile(null);
+    setSelectedObjects(["человек", "автомобиль"]);
+    setBlurType("gaussian");
+    setBlurIntensity([50]);
+    setSearchTerm("");
+    setSelectedCategory("all");
+    setProgress(0);
+    setFileStatus("");
+    setCurrentFileId(null);
   }
 };
 
@@ -366,7 +376,7 @@ const pollStatus = async (fileId: string) => {
     setCurrentFileId(null);
   }
 };
-
+{/* */}
   const fetchFiles = async () => {
     if (!isAuthenticated || !token) return;
     try {
@@ -415,24 +425,6 @@ const pollStatus = async (fileId: string) => {
     } catch (error: any) {
       console.error(`Ошибка скачивания (${type}):`, error);
       alert(`Ошибка: ${error.message || "Не удалось скачать файл"}`);
-    }
-  };
-
-  const handleDelete = async (fileId: string) => {
-    if (!isAuthenticated) return;
-    try {
-      const res = await fetch(`${API_LINK}/api/files/${fileId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        fetchFiles();
-      } else {
-        alert("Ошибка удаления");
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      alert("Ошибка соединения");
     }
   };
 
@@ -529,43 +521,123 @@ const pollStatus = async (fileId: string) => {
               <Link href="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors">
                 <ArrowLeft className="w-5 h-5" />
               </Link>
-              <div className="flex items-center gap-2">
-                <Link href="/" className="logo">
-                  <div className="logo-icon">
-                    <CameraIcon />
-                  </div>
-                  <span className="logo-text">Obscura</span>
-                </Link>   
-              </div>
+              <Link href="/" className="logo">
+                <div className="logo-icon">
+                  <CameraIcon />
+                </div>
+                <span className="logo-text">Obscura</span>
+              </Link>
             </div>
-            <div className="flex items-center gap-3">
-            {isAuthenticated && (
-              <Link href="/history" className="text-white/80 hover:text-white transition-colors relative group">
+
+            <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0 md:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 z-2000">
+                <div className="flex flex-col gap-2 p-2">
+                  <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                    <Link href="/" onClick={() => setIsMenuOpen(false)}>
+                      Домой
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAuthenticated && (
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                      <Link href="/history" onClick={() => setIsMenuOpen(false)}>
+                        История
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  {isAuthenticated ? (
+                    <>
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                          <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <Link href="/dashboard" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
+                          <Settings className="mr-2 h-4 w-4 text-current" />
+                          Настройки
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          logout();
+                          setIsMenuOpen(false);
+                        }}
+                        className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      >
+                        <LogOut className="mr-2 h-4 w-4 text-current" />
+                        Выйти
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <LoginModal
+                          open={showLoginModal}
+                          onOpenChange={(open) => {
+                            setShowLoginModal(open);
+                            setIsMenuOpen(false);
+                          }}
+                          onSwitchToRegister={() => {
+                            handleSwitchToRegister();
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          <button className="w-full text-left">Войти</button>
+                        </LoginModal>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <RegistrationModal
+                          open={showRegistrationModal}
+                          onOpenChange={(open) => {
+                            setShowRegistrationModal(open);
+                            setIsMenuOpen(false);
+                          }}
+                          onSwitchToLogin={() => {
+                            handleSwitchToLogin();
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          <button className="w-full text-left">Регистрация</button>
+                        </RegistrationModal>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="hidden md:flex items-center gap-3">
+              {isAuthenticated && (
+                <Link href="/history" className="text-white/80 hover:text-white transition-colors">
                   <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
                     <Clock className="w-4 h-4" />
                     История
                   </Button>
-              </Link>
-            )}
-            {isAuthenticated ? (
-              <DropdownMenu open={open} onOpenChange={setOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
-                  >
-                    <User className="h-4 w-4" />
-                    {user?.name || user?.email || "Пользователь"}
-                    {open ? (
-                      <ChevronUp className="h-4 w-4 ml-1" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 ml-1" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="end" className="w-56 h-48 z-2000">
-                  <div>
+                </Link>
+              )}
+              {isAuthenticated ? (
+                <DropdownMenu open={open} onOpenChange={setOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
+                    >
+                      <User className="h-4 w-4" />
+                      {user?.name || user?.email || "Пользователь"}
+                      {open ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 z-2000">
                     <DropdownMenuLabel>
                       <div className="flex flex-col">
                         <span className="font-semibold">{user?.name || "Пользователь"}</span>
@@ -573,49 +645,39 @@ const pollStatus = async (fileId: string) => {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                  </div>
-
-                  <div className="flex flex-col gap-4 mt-4 pl-3">
-                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
-                      <Link href="/dashboard" className="flex items-center">
-                        <Settings className="mr-2 h-4 w-4 text-current" />
-                        Настройки
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={logout}
-                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
-                      style={{ fontSize: "17px" }}
-                    >
-                      <LogOut className="mr-2 h-4 w-4 text-current" />
-                      Выйти
-                    </DropdownMenuItem>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <>
-                <LoginModal
-                  open={showLoginModal}
-                  onOpenChange={setShowLoginModal}
-                  onSwitchToRegister={handleSwitchToRegister}
-                >
-                  <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
-                    Войти
-                  </Button>
-                </LoginModal>
-                <RegistrationModal
-                  open={showRegistrationModal}
-                  onOpenChange={setShowRegistrationModal}
-                  onSwitchToLogin={handleSwitchToLogin}
-                >
-                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
-                    Регистрация
-                  </Button>
-                </RegistrationModal>
-              </>
-            )}
-          </div>
+                    <div className="flex flex-col gap-4 mt-4 pl-3">
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                        <Link href="/dashboard" className="flex items-center">
+                          <Settings className="mr-2 h-4 w-4 text-current" />
+                          Настройки
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={logout}
+                        className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                        style={{ fontSize: "17px" }}
+                      >
+                        <LogOut className="mr-2 h-4 w-4 text-current" />
+                        Выйти
+                      </DropdownMenuItem>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <LoginModal open={showLoginModal} onOpenChange={setShowLoginModal} onSwitchToRegister={handleSwitchToRegister}>
+                    <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
+                      Войти
+                    </Button>
+                  </LoginModal>
+                  <RegistrationModal open={showRegistrationModal} onOpenChange={setShowRegistrationModal} onSwitchToLogin={handleSwitchToLogin}>
+                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300">
+                      Регистрация
+                    </Button>
+                  </RegistrationModal>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -656,7 +718,7 @@ const pollStatus = async (fileId: string) => {
                       {uploadedFile ? truncateFileName(uploadedFile.name, 20) : "Перетащите файл или нажмите для выбора"}
                     </p>
                     <p className="font-manrope text-xs text-white/60">
-                      Поддерживаемые форматы: JPG, PNG, GIF, BMP, TIFF, MP4, AVI, MOV, MKV, WMV, FLV
+                      Поддерживаемые форматы: JPG, PNG, BMP, TIFF, MP4, AVI, MOV, MKV, WMV, FLV
                     </p>
                     <p className="font-manrope text-xs text-white/60">Максимум 50 MB</p>
                   </div>

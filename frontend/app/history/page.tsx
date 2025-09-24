@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useAuth } from "@/components/AuthContext"
 import { LoginModal } from "@/components/login-modal"
 import { RegistrationModal } from "@/components/registration-modal"
+import CameraIcon from "@/components/ui/camera-icon";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 
@@ -322,16 +323,15 @@ export default function HistoryPage() {
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors">
                 <ArrowLeft className="w-5 h-5" />
-                <span className="font-manrope">Назад</span>
               </Link>
               <div className="w-px h-6 bg-white/20"></div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-white to-purple-400 rounded-lg flex items-center justify-center">
-                  <Camera className="w-5 h-5 text-black" />
-                </div>
-                <span className="font-geist font-bold text-xl bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-                  Obscura
-                </span>
+                <Link href="/" className="logo">
+                  <div className="logo-icon">
+                    <CameraIcon />
+                  </div>
+                  <span className="logo-text">Obscura</span>
+                </Link>
               </div>
             </div>
             <div className="flex items-center gap-3">

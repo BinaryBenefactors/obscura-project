@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import CameraIcon from "@/components/ui/camera-icon";
 import {
   Camera,
   Settings,
@@ -359,14 +360,12 @@ export default function DashboardPage() {
       <header className="fixed top-0 w-full z-50 backdrop-blur-lg bg-black/10 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-white to-purple-400 rounded-lg flex items-center justify-center">
-                <Camera className="w-5 h-5 text-black" />
-              </div>
-              <span className="font-geist font-bold text-xl bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-                Obscura
-              </span>
-            </Link>
+            <Link href="/" className="logo">
+            <div className="logo-icon">
+              <CameraIcon />
+            </div>
+            <span className="logo-text">Obscura</span>
+          </Link>
             <nav className="hidden md:flex items-center gap-6">
               <Link href="/" className="text-white/80 hover:text-white transition-colors">
                 Главная

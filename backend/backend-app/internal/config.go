@@ -42,8 +42,8 @@ func NewConfig() *Config {
 		DBName:     getEnv("DB_NAME", "obscura"),
 
 		MLServiceURL:     getEnv("ML_SERVICE_URL", "http://ml:5000"),
-		MLServiceTimeout: getEnvAsInt("ML_SERVICE_TIMEOUT", 300),    // 5 минут
-		MLServiceEnabled: getEnvAsBool("ML_SERVICE_ENABLED", false), // пока отключен
+		MLServiceTimeout: getEnvAsInt("ML_SERVICE_TIMEOUT", 300), // 5 минут
+		MLServiceEnabled: getEnvAsBool("ML_SERVICE_ENABLED", true),
 	}
 }
 

@@ -740,6 +740,19 @@
     }
   }
 
+  .modal-content {
+    max-width: 400px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: rgba(17, 24, 39, 0.95);
+    border-radius: 8px;
+    padding: 1rem;
+    z-index: 1001;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    -webkit-overflow-scrolling: touch;
+  }
+
   .features {
     padding: 6rem 0;
     position: relative;
@@ -1289,6 +1302,29 @@
 
     .demo-controls{
       padding: 1rem;
+    }
+
+    .toggle-group{
+      flex-direction: column;
+    }
+
+    .modal-content {
+      max-width: 90vw;
+      padding: 0.75rem;
+    }
+    .modal-content .text-lg {
+      font-size: 1.25rem;
+    }
+    .modal-content .text-sm {
+      font-size: 0.75rem;
+    }
+    .modal-content input {
+      font-size: 0.875rem;
+      padding: 0.5rem;
+    }
+    .modal-content button {
+      font-size: 0.875rem;
+      padding: 0.5rem 1rem;
     }
   }
 }

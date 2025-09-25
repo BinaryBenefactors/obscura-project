@@ -163,14 +163,6 @@ export function RegistrationModal({
               Войти
             </button>
             <br />
-            Регистрируясь, вы соглашаетесь с{" "}
-            <a href="#" className="text-cyan-500 hover:text-cyan-600 hover:underline">
-              условиями использования
-            </a>{" "}
-            и{" "}
-            <a href="#" className="text-cyan-500 hover:text-cyan-600 hover:underline">
-              политикой конфиденциальности
-            </a>
           </p>
         </div>
       </DialogContent>

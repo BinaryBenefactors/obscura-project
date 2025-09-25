@@ -122,12 +122,6 @@ export function LoginModal({
             </Button>
           </form>
 
-          <div className="text-center">
-            <a href="#" className="text-sm text-cyan-500 hover:text-cyan-600 hover:underline font-manrope">
-              Забыли пароль?
-            </a>
-          </div>
-
           <p className="text-xs text-gray-500 text-center font-manrope">
             Нет аккаунта?{" "}
             <button

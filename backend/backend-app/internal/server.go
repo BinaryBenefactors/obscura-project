@@ -1104,15 +1104,13 @@ func (s *Server) determineMimeTypeFromPath(filePath string) string {
 	return s.determineMimeTypeFromExtension(ext)
 }
 
-// Асинхронная обработка файла (эмуляция ML)
+// Асинхронная обработка файла
 func (s *Server) processFileAsync(fileID, filePath, mimeType string, options ProcessingOptions, isAnonymous bool) {
 	s.logger.Info("Starting processing for file %s (anonymous: %v)", fileID, isAnonymous)
 
 	if s.config.MLServiceEnabled {
-		// Когда ML будет готов, здесь будет реальный вызов сервиса
 		s.processWithMLService(fileID, filePath, mimeType, options, isAnonymous)
 	} else {
-		// Эмуляция обработки
 		s.processWithEmulation(fileID, filePath, mimeType, options, isAnonymous)
 	}
 }

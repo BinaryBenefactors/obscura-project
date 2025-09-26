@@ -6,10 +6,11 @@ import { RegistrationModal } from "@/components/registration-modal"
 import { LoginModal } from "@/components/login-modal"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { User, Settings, LogOut, ChevronDown, ChevronUp } from "lucide-react"
+import { User, Settings, LogOut, ChevronDown, ChevronUp, Menu } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/components/AuthContext";
 import CameraIcon from "@/components/ui/camera-icon";
+import { DemoCanvas } from "@/components/demo-canvas"
 
 export default function HomePage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -17,6 +18,7 @@ export default function HomePage() {
   const { user, logout, isAuthenticated } = useAuth();
   const [effectIntensity, setEffectIntensity] = useState(5);
   const [open, setOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleSwitchToLogin = () => {
     setShowRegistrationModal(false)
@@ -149,14 +151,104 @@ export default function HomePage() {
 
       <header id="header" className="header">
         <div className="header-container">
-          <Link href="#" className="logo">
+          <Link href="/" className="logo">
             <div className="logo-icon">
               <CameraIcon />
             </div>
             <span className="logo-text">Obscura</span>
           </Link>
 
-          <nav className="nav">
+          <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0 md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 z-2000">
+              <div className="flex flex-col gap-2 p-2">
+                <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                  <a href="#features" onClick={() => setIsMenuOpen(false)}>
+                    Возможности
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                  <a href="#demo" onClick={() => setIsMenuOpen(false)}>
+                    Демо
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                  <Link href="/history" onClick={() => setIsMenuOpen(false)}>
+                    История
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {isAuthenticated ? (
+                  <>
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                      <Link href="/dashboard" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
+                        <Settings className="mr-2 h-4 w-4 text-current" />
+                        Настройки
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        logout();
+                        setIsMenuOpen(false);
+                      }}
+                      className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                    >
+                      <LogOut className="mr-2 h-4 w-4 text-current" />
+                      Выйти
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                      <LoginModal
+                        open={showLoginModal}
+                        onOpenChange={(open) => {
+                          setShowLoginModal(open);
+                          setIsMenuOpen(false);
+                        }}
+                        onSwitchToRegister={() => {
+                          handleSwitchToRegister();
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        <button className="w-full text-left">Войти</button>
+                      </LoginModal>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                      <RegistrationModal
+                        open={showRegistrationModal}
+                        onOpenChange={(open) => {
+                          setShowRegistrationModal(open);
+                          setIsMenuOpen(false);
+                        }}
+                        onSwitchToLogin={() => {
+                          handleSwitchToLogin();
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        <button className="w-full text-left">Регистрация</button>
+                      </RegistrationModal>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <nav className="nav hidden md:flex">
             <a href="#features" className="nav-link">
               Возможности
             </a>
@@ -168,7 +260,7 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
               <DropdownMenu open={open} onOpenChange={setOpen}>
                 <DropdownMenuTrigger asChild>
@@ -178,25 +270,17 @@ export default function HomePage() {
                   >
                     <User className="h-4 w-4" />
                     {user?.name || user?.email || "Пользователь"}
-                    {open ? (
-                      <ChevronUp className="h-4 w-4 ml-1" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 ml-1" />
-                    )}
+                    {open ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
                   </Button>
                 </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="end" className="w-56 h-48 z-2000">
-                  <div>
-                    <DropdownMenuLabel>
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
-                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                  </div>
-
+                <DropdownMenuContent align="end" className="w-56 z-2000">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                      <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <div className="flex flex-col gap-4 mt-4 pl-3">
                     <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
                       <Link href="/dashboard" className="flex items-center">
@@ -217,21 +301,13 @@ export default function HomePage() {
               </DropdownMenu>
             ) : (
               <>
-                <LoginModal
-                  open={showLoginModal}
-                  onOpenChange={setShowLoginModal}
-                  onSwitchToRegister={handleSwitchToRegister}
-                >
+                <LoginModal open={showLoginModal} onOpenChange={setShowLoginModal} onSwitchToRegister={handleSwitchToRegister}>
                   <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
                     Войти
                   </Button>
                 </LoginModal>
-                <RegistrationModal
-                  open={showRegistrationModal}
-                  onOpenChange={setShowRegistrationModal}
-                  onSwitchToLogin={handleSwitchToLogin}
-                >
-                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300 transform hover:-translate-y-1">
+                <RegistrationModal open={showRegistrationModal} onOpenChange={setShowRegistrationModal} onSwitchToLogin={handleSwitchToLogin}>
+                  <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300">
                     Регистрация
                   </Button>
                 </RegistrationModal>
@@ -376,71 +452,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="demo" id="demo">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-tag">Демонстрация</span>
-            <h2 className="section-title">Увидьте магию в действии</h2>
-            <p className="section-subtitle">Настройте параметры и посмотрите, как работает Obscura</p>
-          </div>
-
-          <div className="demo-content">
-            <div className="demo-visual">
-              <div className="demo-image-container">
-                <img
-                  src="https://images.unsplash.com/photo-1573164713988-8665fc963095?w=800&h=500&fit=crop"
-                  alt="Demo"
-                  className="demo-image"
-                />
-                <div className="demo-overlay"></div>
-              </div>
-            </div>
-
-            <div className="demo-controls">
-              <div className="control-group">
-                <label className="control-label">Интенсивность размытия</label>
-                <input type="range" min="0" max="100" defaultValue="50" className="slider" />
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">Тип эффекта</label>
-                <div className="toggle-group">
-                  <button className="toggle-btn active">Blur</button>
-                  <button className="toggle-btn">Pixelate</button>
-                  <button className="toggle-btn">Blackout</button>
-                </div>
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">Объекты для скрытия</label>
-                <div className="toggle-group">
-                  <button className="toggle-btn active">Лица</button>
-                  <button className="toggle-btn">Номера</button>
-                  <button className="toggle-btn">Документы</button>
-                </div>
-              </div>
-
-              <Link
-                href="/process"
-                className="btn-primary"
-                style={{
-                  width: "100%",
-                  marginTop: "2rem",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.75rem",
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-                Применить эффекты
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      <DemoCanvas />
 
       <section className="cta">
         <div className="container">
@@ -487,10 +499,6 @@ export default function HomePage() {
 
           <div className="footer-bottom">
             <div className="footer-copyright">© 2025 Obscura. Все права защищены.</div>
-            <div className="footer-legal">
-              <a href="/privacy">Конфиденциальность</a>
-              <a href="/terms">Условия использования</a>
-            </div>
           </div>
         </div>
       </footer>

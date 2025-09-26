@@ -73,7 +73,7 @@ export function RegistrationModal({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-white/95 backdrop-blur-lg border border-gray-200 text-gray-900 p-8">
+      <DialogContent className="modal-content max-h-[90vh] z-1001 overflow-y-auto p-4 sm:p-6 text-gray-900">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
@@ -163,14 +163,6 @@ export function RegistrationModal({
               Войти
             </button>
             <br />
-            Регистрируясь, вы соглашаетесь с{" "}
-            <a href="#" className="text-cyan-500 hover:text-cyan-600 hover:underline">
-              условиями использования
-            </a>{" "}
-            и{" "}
-            <a href="#" className="text-cyan-500 hover:text-cyan-600 hover:underline">
-              политикой конфиденциальности
-            </a>
           </p>
         </div>
       </DialogContent>

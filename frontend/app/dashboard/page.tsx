@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import CameraIcon from "@/components/ui/camera-icon";
 import {
+  ArrowLeft,
+  LogOut,
   Camera,
   Settings,
   Crown,
@@ -18,16 +21,20 @@ import {
   Edit3,
   Calendar,
   CreditCard,
+  ChevronDown,
+  ChevronUp,
   Shield,
   Bell,
   User,
   ChevronRight,
   CircleX,
+  Menu,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthContext";
 import { LoginModal } from "@/components/login-modal";
 import { RegistrationModal } from "@/components/registration-modal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const API_LINK = process.env.NEXT_PUBLIC_API_LINK || "http://localhost:8080";
 
@@ -43,9 +50,11 @@ export default function DashboardPage() {
     last_stats_update: "",
   });
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [profileData, setProfileData] = useState({
     name: "",
     email: "",
@@ -356,55 +365,169 @@ export default function DashboardPage() {
       <div className="bg-animation absolute top-0 left-0 w-full h-full z-0"></div>
 
       {/* Header */}
-      <header className="fixed top-0 w-full z-50 backdrop-blur-lg bg-black/10 border-b border-white/10">
+      <header className="fixed top-0 w-full z-50 backdrop-blur-lg bg-black/10 border-b border-white/10 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-white to-purple-400 rounded-lg flex items-center justify-center">
-                <Camera className="w-5 h-5 text-black" />
-              </div>
-              <span className="font-geist font-bold text-xl bg-gradient-to-r from-white to-purple-400 bg-clip-text text-transparent">
-                Obscura
-              </span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="/" className="text-white/80 hover:text-white transition-colors">
-                Главная
+            <div className="flex items-center gap-4">
+              <Link href="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors">
+                <ArrowLeft className="w-5 h-5" />
               </Link>
-              <Link href="/process" className="text-white/80 hover:text-white transition-colors">
-                Обработка
+              <Link href="/" className="logo">
+                <div className="logo-icon">
+                  <CameraIcon />
+                </div>
+                <span className="logo-text">Obscura</span>
               </Link>
-              <Link href="/history" className="text-white/80 hover:text-white transition-colors">
-                История
-              </Link>
-            </nav>
-            <div className="flex items-center gap-3">
-              {isAuthenticated ? (
+            </div>
+
+            <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-                  onClick={logout}
+                  className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0 md:hidden"
                 >
-                  <User className="w-4 h-4 mr-2" />
-                  Выйти
+                  <Menu className="h-5 w-5" />
                 </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 z-2000">
+                <div className="flex flex-col gap-2 p-2">
+                  <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                    <Link href="/" onClick={() => setIsMenuOpen(false)}>
+                      Домой
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                    <Link href="/history" onClick={() => setIsMenuOpen(false)}>
+                      История
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAuthenticated && (
+                    <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                      <Link href="/process" onClick={() => setIsMenuOpen(false)}>
+                        Обработать
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  {isAuthenticated ? (
+                    <>
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                          <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <Link href="/dashboard" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
+                          <Settings className="mr-2 h-4 w-4 text-current" />
+                          Настройки
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          logout();
+                          setIsMenuOpen(false);
+                        }}
+                        className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                      >
+                        <LogOut className="mr-2 h-4 w-4 text-current" />
+                        Выйти
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <LoginModal
+                          open={showLoginModal}
+                          onOpenChange={(open) => {
+                            setShowLoginModal(open);
+                            setIsMenuOpen(false);
+                          }}
+                          onSwitchToRegister={() => {
+                            handleSwitchToRegister();
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          <button className="w-full text-left">Войти</button>
+                        </LoginModal>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black">
+                        <RegistrationModal
+                          open={showRegistrationModal}
+                          onOpenChange={(open) => {
+                            setShowRegistrationModal(open);
+                            setIsMenuOpen(false);
+                          }}
+                          onSwitchToLogin={() => {
+                            handleSwitchToLogin();
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          <button className="w-full text-left">Регистрация</button>
+                        </RegistrationModal>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <div className="hidden md:flex items-center gap-3">
+              {isAuthenticated && (
+                <Link href="/process" className="text-white/80 hover:text-white transition-colors">
+                  <Button className="font-manrope bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 text-white hover:from-cyan-500/30 hover:to-blue-500/30 hover:border-cyan-400/50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 backdrop-blur-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Обработать
+                  </Button>
+                </Link>
+              )}
+              {isAuthenticated ? (
+                <DropdownMenu open={open} onOpenChange={setOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 font-manrope text-white bg-white/10 hover:bg-white/20 border-0"
+                    >
+                      <User className="h-4 w-4" />
+                      {user?.name || user?.email || "Пользователь"}
+                      {open ? <ChevronUp className="h-4 w-4 ml-1" /> : <ChevronDown className="h-4 w-4 ml-1" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 z-2000">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{user?.name || "Пользователь"}</span>
+                        <span className="text-sm text-[#8c939f]">{user?.email}</span>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <div className="flex flex-col gap-4 mt-4 pl-3">
+                      <DropdownMenuItem className="hover:bg-transparent focus:bg-transparent text-black hover:text-black focus:text-black" style={{ fontSize: "17px" }}>
+                        <Link href="/dashboard" className="flex items-center">
+                          <Settings className="mr-2 h-4 w-4 text-current" />
+                          Настройки
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={logout}
+                        className="text-red-500 hover:bg-transparent focus:bg-transparent focus:text-red-500"
+                        style={{ fontSize: "17px" }}
+                      >
+                        <LogOut className="mr-2 h-4 w-4 text-current" />
+                        Выйти
+                      </DropdownMenuItem>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <>
-                  <LoginModal
-                    open={showLoginModal}
-                    onOpenChange={setShowLoginModal}
-                    onSwitchToRegister={handleSwitchToRegister}
-                  >
+                  <LoginModal open={showLoginModal} onOpenChange={setShowLoginModal} onSwitchToRegister={handleSwitchToRegister}>
                     <Button variant="ghost" className="font-manrope text-white hover:bg-white/10">
                       Войти
                     </Button>
                   </LoginModal>
-                  <RegistrationModal
-                    open={showRegistrationModal}
-                    onOpenChange={setShowRegistrationModal}
-                    onSwitchToLogin={handleSwitchToLogin}
-                  >
-                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600">
+                  <RegistrationModal open={showRegistrationModal} onOpenChange={setShowRegistrationModal} onSwitchToLogin={handleSwitchToLogin}>
+                    <Button className="font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-purple-500/25 transition-all duration-300">
                       Регистрация
                     </Button>
                   </RegistrationModal>
@@ -473,7 +596,7 @@ export default function DashboardPage() {
                         <p className="text-white/70 text-sm font-manrope">Неудачных обработок</p>
                         <p className="text-2xl font-bold font-geist">{stats.total_failed}</p>
                       </div>
-                      <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center mb-4">
                         <CircleX className="w-6 h-6 text-white" />
                       </div>
                     </div>
@@ -671,17 +794,7 @@ export default function DashboardPage() {
                       </Button>
                       
                     </CardContent>
-                  </Card>
-
-                  {/* Recent Activity (Placeholder) ДОБАВИТЬ ПОСЛЕДНИЕ ТРИ ФАЙЛА, КТО ТО УМНЫЙ СДЕЛАЕТ */}
-                  <Card className="bg-white/5 backdrop-blur-lg border-white/10 text-white">
-                    <CardHeader>
-                      <CardTitle className="font-geist">Последняя активность</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <p className="text-white/70 text-sm">Нет недавней активности</p>
-                    </CardContent>
-                  </Card>
+                  </Card>                  
                 </div>
               </div>
             </>

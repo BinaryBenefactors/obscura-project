@@ -150,7 +150,7 @@ class MLExecutor:
                 
     def _worker(self):
         """Рабочий поток для обработки файлов"""
-        # Каждый воркер создает свой экземпляр детектора
+        # Каждый воркер создает свой детектор для потокобезопасности
         detector = self._create_detector()
         worker_name = threading.current_thread().name
         
@@ -171,7 +171,11 @@ class MLExecutor:
             face_model_path=self.model_path,
             confidence_threshold=self.confidence_threshold
         )
-        detector.initialize()
+        # Инициализируем только если модели еще не загружены
+        try:
+            detector.initialize()
+        except Exception as e:
+            print(f"Предупреждение: Модели уже загружены или ошибка: {e}")
         return detector
         
     def _process_file(self, detector: MLObjectDetector, filename: str, options: 'Options', worker_name: str):

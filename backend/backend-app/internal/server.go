@@ -658,13 +658,28 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Парсим опции обработки
 	options := s.parseProcessingOptions(r)
 
-	s.logger.Info("Processing file upload: %s (%d bytes) %s", header.Filename, header.Size,
+	// НОВАЯ ВАЛИДАЦИЯ ОПЦИЙ ОБРАБОТКИ
+	if validationErrors := s.validator.ValidateProcessingOptions(options); len(validationErrors) > 0 {
+		s.logger.Warning("Processing options validation failed for %s: %v", 
+			func() string {
+				if isAnonymous {
+					return "anonymous user"
+				}
+				return fmt.Sprintf("user %d", userID)
+			}(), validationErrors)
+		s.sendValidationErrors(w, validationErrors)
+		return
+	}
+
+	s.logger.Info("Processing file upload: %s (%d bytes) %s with options: blur_type=%s, intensity=%d, objects=%v", 
+		header.Filename, header.Size,
 		func() string {
 			if isAnonymous {
 				return "for anonymous user"
 			}
 			return fmt.Sprintf("for user %d", userID)
-		}())
+		}(),
+		options.BlurType, options.Intensity, options.ObjectTypes)
 
 	fileID := uuid.New().String()
 	ext := filepath.Ext(header.Filename)

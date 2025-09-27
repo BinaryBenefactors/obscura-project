@@ -1,6 +1,7 @@
 
 from app.ml.tools.object_detector import MLObjectDetector
 from app.schemas.uploadfile import Options
+import os
 import queue
 import threading
 import time
@@ -16,39 +17,62 @@ class FileStatus(Enum):
 
 class MLExecutor:
     """
-    Класс для последовательной обработки файлов в очереди.
-    Гарантирует обработку не более 1 файла одновременно.
+    Класс для параллельной обработки файлов в очереди.
+    Поддерживает настраиваемое количество воркеров.
     """
     
-    def __init__(self, model_path:str = "models/yolov11m-face.pt", confidence_threshold=0.5):
+    def __init__(self, model_path: str = "models/yolov11m-face.pt", confidence_threshold: float = 0.5):
         """
         Инициализация процессора файлов.
         
         Args:
-            process_function: Функция для обработки файла, принимает имя файла
+            model_path: Путь к модели YOLO
+            confidence_threshold: Порог уверенности для детекции
         """
-        self.detector = MLObjectDetector(model_path, confidence_threshold=confidence_threshold)
-        self.detector.initialize()
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+        self.num_workers = self._get_worker_count()
+        
         self._file_queue = queue.Queue()
         self._file_statuses: Dict[str, Dict[str, Any]] = {}
         self._status_lock = threading.Lock()
-        self._worker_thread = None
+        self._workers = []
         self._running = False
         
+    def _get_worker_count(self) -> int:
+        """Получение количества воркеров из переменной окружения"""
+        return int(os.getenv('ML_WORKERS', '3'))
+        
     def start(self):
-        """Запуск обработчика"""
+        """Запуск всех воркеров"""
         if self._running:
             return
             
         self._running = True
-        self._worker_thread = threading.Thread(target=self._worker, daemon=True)
-        self._worker_thread.start()
+        self._start_workers()
         
     def stop(self):
-        """Остановка обработчика"""
+        """Остановка всех воркеров"""
         self._running = False
-        if self._worker_thread:
-            self._worker_thread.join()
+        self._stop_workers()
+        
+    def _start_workers(self):
+        """Создание и запуск воркеров"""
+        for i in range(self.num_workers):
+            worker = threading.Thread(
+                target=self._worker,
+                name=f"MLWorker-{i+1}",
+                daemon=True
+            )
+            worker.start()
+            self._workers.append(worker)
+            
+    def _stop_workers(self):
+        """Остановка и ожидание завершения воркеров"""
+        for worker in self._workers:
+            if worker.is_alive():
+                worker.join(timeout=5)
+        self._workers.clear()
             
     def add_to_queue(self, filename: str, options: 'Options') -> bool:
         """
@@ -112,6 +136,7 @@ class MLExecutor:
                 result[filename] = status_info
             return result
             
+            
     def clear_completed(self):
         """Очистить записи о завершенных файлах"""
         with self._status_lock:
@@ -125,50 +150,54 @@ class MLExecutor:
                 
     def _worker(self):
         """Рабочий поток для обработки файлов"""
+        # Каждый воркер создает свой экземпляр детектора
+        detector = self._create_detector()
+        worker_name = threading.current_thread().name
+        
         while self._running:
             try:
-                # Получаем файл из очереди с таймаутом
                 filename, options = self._file_queue.get(timeout=1)
-                
-                # Обновляем статус на "обрабатывается"
-                with self._status_lock:
-                    if filename in self._file_statuses:
-                        self._file_statuses[filename]["status"] = FileStatus.PROCESSING
-                        self._file_statuses[filename]["start_time"] = time.time()
-                
-                try:
-                    # Выполняем обработку файла
-                    result = self.detector.process_file(
-                        filename,
-                        options.object_types,
-                        options.intensity,
-                        options.blur_type,
-                    )
-                    result = result.replace('\\', '/')
-                    # Обновляем статус на "завершено"
-                    with self._status_lock:
-                        if filename in self._file_statuses:
-                            self._file_statuses[filename]["status"] = FileStatus.COMPLETED
-                            self._file_statuses[filename]["end_time"] = time.time()
-                            self._file_statuses[filename]["result"] = result
-                            
-                except Exception as e:
-                    # Обновляем статус на "ошибка"
-                    with self._status_lock:
-                        if filename in self._file_statuses:
-                            self._file_statuses[filename]["status"] = FileStatus.ERROR
-                            self._file_statuses[filename]["end_time"] = time.time()
-                            self._file_statuses[filename]["error"] = str(e)
-                
-                # Отмечаем задачу как выполненную
+                self._process_file(detector, filename, options, worker_name)
                 self._file_queue.task_done()
                 
             except queue.Empty:
-                # Таймаут при получении из очереди - продолжаем
                 continue
             except Exception as e:
-                # Неожиданная ошибка в рабочем потоке
-                print(f"Ошибка в рабочем потоке: {e}")
+                print(f"Ошибка в воркере {worker_name}: {e}")
+                
+    def _create_detector(self) -> MLObjectDetector:
+        """Создание экземпляра детектора для воркера"""
+        detector = MLObjectDetector(
+            face_model_path=self.model_path,
+            confidence_threshold=self.confidence_threshold
+        )
+        detector.initialize()
+        return detector
+        
+    def _process_file(self, detector: MLObjectDetector, filename: str, options: 'Options', worker_name: str):
+        """Обработка одного файла"""
+        self._update_status(filename, FileStatus.PROCESSING, start_time=time.time())
+        
+        try:
+            result = detector.process_file(
+                filename,
+                options.object_types,
+                options.intensity,
+                options.blur_type,
+            )
+            result = result.replace('\\', '/')
+            self._update_status(filename, FileStatus.COMPLETED, result=result, end_time=time.time())
+            
+        except Exception as e:
+            self._update_status(filename, FileStatus.ERROR, error=str(e), end_time=time.time())
+            
+    def _update_status(self, filename: str, status: FileStatus, **kwargs):
+        """Потокобезопасное обновление статуса файла"""
+        with self._status_lock:
+            if filename in self._file_statuses:
+                self._file_statuses[filename]["status"] = status
+                for key, value in kwargs.items():
+                    self._file_statuses[filename][key] = value
 
 processor = MLExecutor()
 processor.start()

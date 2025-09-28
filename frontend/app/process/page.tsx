@@ -266,9 +266,10 @@ const handleProcess = async () => {
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
-      if (res.status === 401 && isAuthenticated) {
+      if ((res.status === 401 || res.status === 403) && isAuthenticated) {
         alert("Сессия истекла, пожалуйста, войдите снова");
         logout();
+        return;
       } else if (res.status === 429 && !isAuthenticated) {
         alert("Исчерпан лимит в 3 попытки. Попробуйте завтра или войдите в аккаунт.");
         setFileStatus("❌ Лимит попыток исчерпан");
@@ -337,9 +338,10 @@ const pollStatus = async (fileId: string) => {
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
       console.error("Polling error response:", error, "Status:", res.status);
-      if (res.status === 401 && isAuthenticated) {
+      if ((res.status === 401 || res.status === 403) && isAuthenticated) {
         alert("Сессия истекла, пожалуйста, войдите снова");
         logout();
+        return;
       } else if (res.status === 403 && !isAuthenticated) {
         setFileStatus("❌ Ошибка: Сервер отклонил запрос на проверку статуса. Попробуйте позже.");
         setCurrentFileId(null);
@@ -401,9 +403,10 @@ const pollStatus = async (fileId: string) => {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        if (res.status === 401 && isAuthenticated) {
+        if ((res.status === 401 || res.status === 403) && isAuthenticated) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(error.message || `Ошибка скачивания: ${res.status}`);
       }

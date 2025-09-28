@@ -83,9 +83,10 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(`Ошибка получения статистики: ${res.status}`);
       }
@@ -180,9 +181,10 @@ export default function DashboardPage() {
       });
 
       if (!res.ok) {
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Ошибка обновления профиля: ${res.status}`);

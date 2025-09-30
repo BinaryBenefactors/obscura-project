@@ -99,9 +99,10 @@ export default function HistoryPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(`Ошибка получения файлов: ${res.status}`);
       }
@@ -138,9 +139,10 @@ export default function HistoryPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(`Ошибка получения статистики: ${res.status}`);
       }
@@ -166,9 +168,10 @@ export default function HistoryPage() {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        if (res.status === 401 && isAuthenticated) {
+        if ((res.status === 401 || res.status === 403) && isAuthenticated) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(error.message || `Ошибка скачивания: ${res.status}`);
       }
@@ -199,9 +202,10 @@ export default function HistoryPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
           alert("Сессия истекла, пожалуйста, войдите снова");
           logout();
+          return;
         }
         throw new Error(`Ошибка удаления: ${res.status}`);
       }

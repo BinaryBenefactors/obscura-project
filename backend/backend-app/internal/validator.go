@@ -65,12 +65,85 @@ func NewValidator(maxFileSize int64) *Validator {
 			"pixelate": true,
 		},
 		allowedObjects: map[string]bool{
-			"face":   true,
-			"person": true,
-			"car":    true,
-			"plate":  true,
-			"text":   true,
-			"logo":   true,
+			"face":             true, // лицо
+			"person":           true, // человек
+			"bicycle":          true, // велосипед
+			"car":              true, // автомобиль
+			"motorcycle":       true, // мотоцикл
+			"airplane":         true, // самолет
+			"bus":              true, // автобус
+			"train":            true, // поезд
+			"truck":            true, // грузовик
+			"boat":             true, // лодка
+			"traffic light":    true, // светофор
+			"fire hydrant":     true, // пожарный гидрант
+			"stop sign":        true, // знак стоп
+			"parking meter":    true, // парковочный счетчик
+			"bench":            true, // скамейка
+			"bird":             true, // птица
+			"cat":              true, // кот
+			"dog":              true, // собака
+			"horse":            true, // лошадь
+			"sheep":            true, // овца
+			"cow":              true, // корова
+			"elephant":         true, // слон
+			"bear":             true, // медведь
+			"zebra":            true, // зебра
+			"giraffe":          true, // жираф
+			"backpack":         true, // рюкзак
+			"umbrella":         true, // зонт
+			"handbag":          true, // сумка
+			"tie":              true, // галстук
+			"suitcase":         true, // чемодан
+			"frisbee":          true, // фрисби
+			"skis":             true, // лыжи
+			"snowboard":        true, // сноуборд
+			"sports ball":      true, // спортивный мяч
+			"kite":             true, // воздушный змей
+			"baseball bat":     true, // бейсбольная бита
+			"baseball glove":   true, // бейсбольная перчатка
+			"skateboard":       true, // скейтборд
+			"surfboard":        true, // доска для серфинга
+			"tennis racket":    true, // теннисная ракетка
+			"bottle":           true, // бутылка
+			"wine glass":       true, // бокал для вина
+			"cup":              true, // чашка
+			"fork":             true, // вилка
+			"knife":            true, // нож
+			"spoon":            true, // ложка
+			"bowl":             true, // миска
+			"banana":           true, // банан
+			"apple":            true, // яблоко
+			"sandwich":         true, // бутерброд
+			"orange":           true, // апельсин
+			"broccoli":         true, // брокколи
+			"carrot":           true, // морковь
+			"hot dog":          true, // хот-дог
+			"pizza":            true, // пицца
+			"donut":            true, // пончик
+			"cake":             true, // торт
+			"chair":            true, // стул
+			"couch":            true, // диван
+			"potted plant":     true, // горшечное растение
+			"bed":              true, // кровать
+			"dining table":     true, // обеденный стол
+			"toilet":           true, // туалет
+			"tv":               true, // телевизор
+			"laptop":           true, // ноутбук
+			"mouse":            true, // мышь
+			"remote":           true, // пульт
+			"keyboard":         true, // клавиатура
+			"cell phone":       true, // мобильный телефон
+			"microwave":        true, // микроволновка
+			"oven":             true, // духовка
+			"toaster":          true, // тостер
+			"sink":             true, // раковина
+			"refrigerator":     true, // холодильник
+			"book":             true, // книга
+			"clock":            true, // часы
+			"vase":             true, // ваза
+			"scissors":         true, // ножницы
+			"teddy bear":       true, // плюшевый мишка
 		},
 	}
 }
@@ -230,7 +303,7 @@ func (v *Validator) ValidateProcessingOptions(options ProcessingOptions) []Valid
 		if objType != "" && !v.allowedObjects[objType] {
 			errors = append(errors, ValidationError{
 				Field:   "object_types",
-				Message: fmt.Sprintf("Invalid object type: %s. Allowed values: face, person, car, plate, text, logo", objType),
+				Message: fmt.Sprintf("Invalid object type: '%s'. Allowed object types can be found in API documentation", objType),
 			})
 		}
 	}

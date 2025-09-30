@@ -31,6 +31,8 @@ services:
       context: ./backend/ml
       dockerfile: Dockerfile
     container_name: ml-fastapi-app
+    environment:
+      - ML_WORKERS=3  # Количество воркеров для обработки
     ports:
       - "8000:8000"
     volumes:

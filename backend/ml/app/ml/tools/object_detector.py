@@ -166,6 +166,18 @@ class MLObjectDetector:
         intensity: int,
         blur_type: str,
     ) -> str:
+        """
+        Обработка файла.
+        
+        Args:
+            file_path: Путь к файлу
+            object_types: Типы объектов для детекции
+            intensity: Интенсивность размытия
+            blur_type: Тип размытия
+            
+        Returns:
+            Путь к обработанному файлу
+        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Файл не найден: {file_path}")
 
@@ -175,7 +187,8 @@ class MLObjectDetector:
 
         if file_ext in image_extensions:
             return self.process_image(file_path, object_types, intensity, blur_type)
-        if file_ext in video_extensions:
+        elif file_ext in video_extensions:
             return self.process_video(file_path, object_types, intensity, blur_type)
-        raise ValueError(f"Неподдерживаемый формат файла: {file_ext}")
+        else:
+            raise ValueError(f"Неподдерживаемый формат файла: {file_ext}")
 

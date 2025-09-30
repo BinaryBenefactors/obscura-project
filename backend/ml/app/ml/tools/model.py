@@ -1,10 +1,15 @@
 import os
+import threading
 
 from ultralytics import YOLO
 from typing import List
 
 class Model:
     """Модуль для работы с YOLO моделью и обработки результатов детекции"""
+    
+    # Глобальный кэш для загруженных моделей (потокобезопасный)
+    _loaded_models = {}
+    _cache_lock = threading.Lock()
     
     def __init__(self, model_path: str = "models/yolov11m-face.pt", confidence_threshold: float = 0.7):
         """
@@ -20,15 +25,34 @@ class Model:
         self.class_names = None
         
     def load_model(self):
-        """Загрузка модели YOLO"""
-        try:
-            os.environ['YOLO_VERBOSE'] = 'False'  # Глобальное отключение вывода
-            self.model = YOLO(self.model_path, verbose=False)
-            self.class_names = self.model.names
-            print(f"Модель успешно загружена из {self.model_path}")
-        except Exception as e:
-            print(f"Ошибка загрузки модели: {e}")
-            raise
+        """Загрузка модели YOLO с потокобезопасным кэшированием"""
+        if self.model is not None:
+            return  # Модель уже загружена
+            
+        # Потокобезопасная проверка кэша
+        with Model._cache_lock:
+            if self.model_path in Model._loaded_models:
+                cached_model = Model._loaded_models[self.model_path]
+                self.model = cached_model['model']
+                self.class_names = cached_model['class_names']
+                return
+            
+            # Загружаем модель только если её нет в кэше
+            try:
+                os.environ['YOLO_VERBOSE'] = 'False'  # Глобальное отключение вывода
+                self.model = YOLO(self.model_path, verbose=False)
+                self.class_names = self.model.names
+                
+                # Кэшируем модель
+                Model._loaded_models[self.model_path] = {
+                    'model': self.model,
+                    'class_names': self.class_names
+                }
+                
+                print(f"Модель успешно загружена из {self.model_path}")
+            except Exception as e:
+                print(f"Ошибка загрузки модели: {e}")
+                raise
     
     def predict(self, image_source) -> List:
         """

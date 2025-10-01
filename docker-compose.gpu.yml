@@ -15,7 +15,8 @@ services:
          service_healthy
       ml:
         condition:
-         service_healthy
+         service_started
+
     networks:
       - app-network
     restart: unless-stopped

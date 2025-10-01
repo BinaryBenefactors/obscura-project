@@ -4,8 +4,7 @@ services:
       context: ./backend/backend-app
       dockerfile: Dockerfile
     env_file:
-      - fileName:
-      - /backend/backend-app/.env
+      - ./backend/backend-app/.env
     volumes:
       - uploads:/app/uploads
     ports:
@@ -23,8 +22,7 @@ services:
       dockerfile: Dockerfile
     container_name: ml-fastapi-app
     env_file:
-      - fileName:
-      - /backend/ml/.env
+      - ./backend/ml/.env
     ports:
       - "8000:8000"
     volumes:
@@ -44,8 +42,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - fileName:
-      - /frontend/.env
+      - ./frontend/.env
     networks:
       - app-network
 
@@ -68,8 +65,7 @@ services:
   db:
     image: postgres:17-alpine
     env_file:
-      - fileName:
-      - /backend/backend-app/.env
+      - ./backend/backend-app/.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

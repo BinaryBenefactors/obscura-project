@@ -68,7 +68,7 @@ jobs:
 
     - name: Build and start services with Docker Compose
       run: |
-        docker compose up -d --build
+        docker compose -f docker-compose.gpu.yml up -d --build
         sleep 30  # Wait for services to start
 
     - name: Health check backend

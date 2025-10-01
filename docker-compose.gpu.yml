@@ -3,18 +3,9 @@ services:
     build: 
       context: ./backend/backend-app
       dockerfile: Dockerfile
-    environment:
-      - DB_HOST=db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=appdb
-      - DB_PORT=5432
-      - JWT_SECRET=your-secret-key-change-in-production
-      - UPLOAD_PATH=/app/uploads
-      - MAX_FILE_SIZE=52428800  # 50MB
-      - ML_SERVICE_URL=http://ml:8000
-      - ML_SERVICE_TIMEOUT=300  # 5 minutes
-      - ML_SERVICE_ENABLED=true
+    env_file:
+      - fileName:
+      - /backend/backend-app/.env
     volumes:
       - uploads:/app/uploads
     ports:
@@ -31,6 +22,9 @@ services:
       context: ./backend/ml
       dockerfile: Dockerfile
     container_name: ml-fastapi-app
+    env_file:
+      - fileName:
+      - /backend/ml/.env  
     ports:
       - "8000:8000"
     volumes:
@@ -56,8 +50,9 @@ services:
       dockerfile: Dockerfile.frontend
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=production
+    env_file:
+      - fileName:
+      - /frontend/.env
     networks:
       - app-network
 
@@ -79,10 +74,9 @@ services:
 
   db:
     image: postgres:17-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=appdb
+    env_file:
+      - fileName:
+      - /backend/backend-app/.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

@@ -10,9 +10,45 @@ jobs:
   build-and-test:
     runs-on: self-hosted
     
+    environment:
+      name: master
+
+    env:
+      BACKEND_PORT: ${{ vars.BACKEND_PORT || '8080' }}
+      BACKEND_UPLOAD_PATH: ${{ vars.BACKEND_UPLOAD_PATH || './app/uploads' }}
+      BACKEND_MAX_FILE_SIZE: ${{ vars.BACKEND_MAX_FILE_SIZE || '52428800' }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      BACKEND_MAX_ATTEMPTS_HANDLED: ${{ vars.BACKEND_MAX_ATTEMPTS_HANDLED || '3' }}
+      BACKEND_HANDLER_TIMEOUT: ${{ vars.BACKEND_HANDLER_TIMEOUT || '24' }}
+      DB_HOST: ${{ vars.DB_HOST || 'db' }}
+      DB_PORT: ${{ vars.DB_PORT || '5432' }}
+      DB_USER: ${{ vars.DB_USER || 'postgres' }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DB_NAME: ${{ vars.DB_NAME || 'obscura' }}
+      ML_SERVICE_URL: ${{ vars.ML_SERVICE_URL || 'http://ml-service:8000' }}
+      ML_SERVICE_ENABLED: ${{ vars.ML_SERVICE_ENABLED || 'true' }}
+      ML_WORKERS: ${{ vars.ML_WORKERS || '3' }}
+      NEXT_PUBLIC_API_LINK: ${{ vars.NEXT_PUBLIC_API_LINK || 'http://localhost:8080' }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Generate .env files from GitHub Secrets and Variables
+      run: |
+        chmod +x scripts/generate-env.sh
+        ./scripts/generate-env.sh
+
+    - name: Display generated .env files (for debugging)
+      run: |
+        echo "=== backend/backend-app/.env ==="
+        cat backend/backend-app/.env
+        echo ""
+        echo "=== backend/ml/.env ==="
+        cat backend/ml/.env
+        echo ""
+        echo "=== frontend/.env ==="
+        cat frontend/.env
 
     - name: Setup Node.js
       uses: actions/setup-node@v4

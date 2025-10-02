@@ -1,8 +1,11 @@
 package internal
 
 import (
+	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -27,6 +30,11 @@ type Config struct {
 }
 
 func NewConfig() *Config {
+	// Загружаем .env файл (игнорируем ошибку, если файл не существует)
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found or could not be loaded: %v", err)
+	}
+
 	return &Config{
 		Port:               getEnv("PORT", "8080"),
 		UploadPath:         getEnv("UPLOAD_PATH", "./uploads"),

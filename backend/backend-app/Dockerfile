@@ -19,6 +19,7 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY pkg/ ./pkg/
+COPY .env* ./
 
 # Генерируем swagger документацию
 RUN swag init -g cmd/main.go -o docs/
@@ -39,6 +40,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 COPY --from=builder /app/docs ./docs/
 COPY --from=builder /app/uploads ./uploads/
+COPY --from=builder /app/.env* ./
 
 EXPOSE 8080
 

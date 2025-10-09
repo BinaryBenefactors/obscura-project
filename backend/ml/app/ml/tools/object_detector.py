@@ -136,6 +136,125 @@ class MLObjectDetector:
             os.remove(temp_output)
         return output_path
 
+    def process_video_with_tracking(
+        self,
+        video_path: str,
+        object_types: List[str],
+        intensity: int,
+        blur_type: str,
+        detection_interval: int = 10,
+    ) -> str:
+        """
+        Обработка видео с использованием CSRT трекера.
+        YOLO запускается только каждый N-й кадр, остальные - трекинг.
+        
+        Args:
+            video_path: Путь к видео файлу
+            object_types: Типы объектов для детекции
+            intensity: Интенсивность размытия
+            blur_type: Тип размытия
+            detection_interval: Интервал кадров для запуска детекции (по умолчанию 10)
+            
+        Returns:
+            Путь к обработанному видео
+        """
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Не удалось открыть видео файл: {video_path}")
+
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        temp_output = self._get_output_filename(video_path).replace(".", "_temp.")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(temp_output, fourcc, fps, (width, height))
+
+        # Список трекеров и их боксов
+        trackers = []
+        frame_count = 0
+
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                frame_count += 1
+                boxes_info = []
+
+                # Каждый N-й кадр - запускаем детекцию YOLO
+                if frame_count % detection_interval == 1:
+                    raw_boxes = self._run_models(frame, object_types)
+                    
+                    # Создаем новые трекеры для всех обнаруженных объектов
+                    trackers = []
+                    boxes_info = []
+                    for box in raw_boxes:
+                        x1, y1, x2, y2 = box["coordinates"]
+                        
+                        # Валидация координат - ограничиваем по границам кадра
+                        x1 = max(0, min(x1, width - 1))
+                        y1 = max(0, min(y1, height - 1))
+                        x2 = max(0, min(x2, width))
+                        y2 = max(0, min(y2, height))
+                        
+                        # Проверяем что бокс имеет положительные размеры
+                        if x2 > x1 and y2 > y1:
+                            # Добавляем валидированный бокс для отрисовки
+                            boxes_info.append({
+                                "coordinates": [x1, y1, x2, y2],
+                                "class_name": box["class_name"],
+                                "confidence": box["confidence"]
+                            })
+                            
+                            # Инициализируем трекер
+                            tracker = cv2.legacy.TrackerCSRT_create()
+                            bbox = (x1, y1, x2 - x1, y2 - y1)
+                            tracker.init(frame, bbox)
+                            trackers.append({
+                                "tracker": tracker,
+                                "class_name": box["class_name"],
+                                "confidence": box["confidence"]
+                            })
+                else:
+                    # На остальных кадрах - обновляем трекеры
+                    updated_trackers = []
+                    for tracker_info in trackers:
+                        success, bbox = tracker_info["tracker"].update(frame)
+                        if success:
+                            x, y, w, h = [int(v) for v in bbox]
+                            # Валидация координат - ограничиваем по границам кадра
+                            x1 = max(0, x)
+                            y1 = max(0, y)
+                            x2 = min(width, x + w)
+                            y2 = min(height, y + h)
+                            
+                            # Проверяем что бокс имеет положительные размеры
+                            if x2 > x1 and y2 > y1:
+                                boxes_info.append({
+                                    "coordinates": [x1, y1, x2, y2],
+                                    "class_name": tracker_info["class_name"],
+                                    "confidence": tracker_info["confidence"]
+                                })
+                                updated_trackers.append(tracker_info)
+                    trackers = updated_trackers
+
+                # Применяем размытие к найденным областям
+                processed_frame = self.box_processor.draw_boxes(
+                    frame, boxes_info, intensity, blur_type
+                )
+                out.write(processed_frame)
+
+        finally:
+            cap.release()
+            out.release()
+
+        output_path = self._add_audio_to_video(video_path, temp_output)
+        if os.path.exists(temp_output):
+            os.remove(temp_output)
+        return output_path
+
     def _add_audio_to_video(self, original_video_path: str, processed_video_path: str) -> str:
         output_path = self._get_output_filename(original_video_path)
         try:

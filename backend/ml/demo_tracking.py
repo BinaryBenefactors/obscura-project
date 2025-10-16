@@ -19,7 +19,7 @@ def demo_tracking_video():
     """Демо обработки видео с трекингом"""
     
     # Путь к видео для обработки
-    video_path = r"C:\OpenCamera\20241220_100510.MP4"
+    video_path = r"C:\Users\Lanutrix\Downloads\video_2025-10-16_08-39-45.mp4"
     
     # Проверяем существование файла
     if not os.path.exists(video_path):
@@ -85,54 +85,54 @@ def demo_tracking_video():
     print("🔄 Для сравнения: обработка БЕЗ трекинга (YOLO на каждом кадре)...")
     start_time_no_tracking = time.time()
     
-    try:
-        # Копируем видео для обработки без трекинга
-        import shutil
-        video_dir = os.path.dirname(video_path)
-        video_name = os.path.basename(video_path)
-        name_without_ext = os.path.splitext(video_name)[0]
-        ext = os.path.splitext(video_name)[1]
+#     try:
+#         # Копируем видео для обработки без трекинга
+#         import shutil
+#         video_dir = os.path.dirname(video_path)
+#         video_name = os.path.basename(video_path)
+#         name_without_ext = os.path.splitext(video_name)[0]
+#         ext = os.path.splitext(video_name)[1]
         
-        temp_video = os.path.join(video_dir, f"{name_without_ext}_no_tracking{ext}")
-        shutil.copy(video_path, temp_video)
+#         temp_video = os.path.join(video_dir, f"{name_without_ext}_no_tracking{ext}")
+#         shutil.copy(video_path, temp_video)
         
-        output_no_tracking = detector.process_video(
-            video_path=temp_video,
-            object_types=object_types,
-            intensity=intensity,
-            blur_type=blur_type,
-        )
+#         output_no_tracking = detector.process_video(
+#             video_path=temp_video,
+#             object_types=object_types,
+#             intensity=intensity,
+#             blur_type=blur_type,
+#         )
         
-        no_tracking_time = time.time() - start_time_no_tracking
-        print(f"✅ Обработка без трекинга завершена за {no_tracking_time:.2f} секунд")
-        print(f"📁 Результат: {output_no_tracking}")
-        print()
+#         no_tracking_time = time.time() - start_time_no_tracking
+#         print(f"✅ Обработка без трекинга завершена за {no_tracking_time:.2f} секунд")
+#         print(f"📁 Результат: {output_no_tracking}")
+#         print()
         
-        # Удаляем временную копию
-        if os.path.exists(temp_video):
-            os.remove(temp_video)
+#         # Удаляем временную копию
+#         if os.path.exists(temp_video):
+#             os.remove(temp_video)
         
-    except Exception as e:
-        print(f"⚠️  Не удалось обработать без трекинга: {e}")
-        no_tracking_time = None
+#     except Exception as e:
+#         print(f"⚠️  Не удалось обработать без трекинга: {e}")
+#         no_tracking_time = None
     
-    # Статистика
-    print("=" * 80)
-    print("📊 СТАТИСТИКА")
-    print("=" * 80)
-    print(f"⏱️  С трекингом (YOLO каждый {detection_interval}-й кадр): {tracking_time:.2f} сек")
+#     # Статистика
+#     print("=" * 80)
+#     print("📊 СТАТИСТИКА")
+#     print("=" * 80)
+#     print(f"⏱️  С трекингом (YOLO каждый {detection_interval}-й кадр): {tracking_time:.2f} сек")
     
-    if no_tracking_time:
-        print(f"⏱️  Без трекинга (YOLO на каждом кадре): {no_tracking_time:.2f} сек")
-        speedup = no_tracking_time / tracking_time
-        print(f"🚀 Ускорение: {speedup:.2f}x")
-        time_saved = no_tracking_time - tracking_time
-        print(f"💾 Сэкономлено времени: {time_saved:.2f} сек ({time_saved/60:.2f} мин)")
+#     # if no_tracking_time:
+#     #     print(f"⏱️  Без трекинга (YOLO на каждом кадре): {no_tracking_time:.2f} сек")
+#     #     speedup = no_tracking_time / tracking_time
+#     #     print(f"🚀 Ускорение: {speedup:.2f}x")
+#     #     time_saved = no_tracking_time - tracking_time
+#     #     print(f"💾 Сэкономлено времени: {time_saved:.2f} сек ({time_saved/60:.2f} мин)")
     
-    print()
-    print("=" * 80)
-    print("✨ Демо завершено!")
-    print("=" * 80)
+#     print()
+#     print("=" * 80)
+#     print("✨ Демо завершено!")
+#     print("=" * 80)
 
 
 if __name__ == "__main__":

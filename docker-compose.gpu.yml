@@ -3,18 +3,14 @@ services:
     build: 
       context: ./backend/backend-app
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/backend-app/.env
     environment:
-      - DB_HOST=db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=appdb
-      - DB_PORT=5432
-      - JWT_SECRET=your-secret-key-change-in-production
-      - UPLOAD_PATH=/app/uploads
-      - MAX_FILE_SIZE=52428800  # 50MB
-      - ML_SERVICE_URL=http://ml:8000
-      - ML_SERVICE_TIMEOUT=300  # 5 minutes
-      - ML_SERVICE_ENABLED=true
+      # Docker-specific overrides (only what differs from .env)
+      - DB_HOST=db              # Docker service name instead of localhost
+      - DB_NAME=appdb           # Docker database name instead of obscura
+      - UPLOAD_PATH=/app/uploads # Docker container path instead of ./uploads
+      - ML_SERVICE_URL=http://ml:8000  # Docker service URL instead of localhost:8000
     volumes:
       - uploads:/app/uploads
     ports:

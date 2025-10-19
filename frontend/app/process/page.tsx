@@ -118,7 +118,7 @@ export default function ProcessPage() {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [blurIntensity, setBlurIntensity] = useState([50]);
-  const [blurType, setBlurType] = useState("gaussian");
+  const [blurType, setBlurType] = useState("pixelate");
   const [processing, setProcessing] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);

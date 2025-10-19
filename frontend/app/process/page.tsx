@@ -129,6 +129,7 @@ export default function ProcessPage() {
   const [rateRemaining, setRateRemaining] = useState<number | null>(null);
   const [currentFileId, setCurrentFileId] = useState<string | null>(null);
   const [fileStatus, setFileStatus] = useState<string>("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const { token, isAuthenticated, user, logout } = useAuth();
   const [open, setOpen] = useState(false)
   const [progress, setProgress] = useState(0);
@@ -228,6 +229,11 @@ export default function ProcessPage() {
   };
 
 const handleProcess = async () => {
+  // Защита от множественных нажатий
+  if (processing || isDownloading) {
+    return;
+  }
+
   if (!uploadedFile || selectedObjects.length === 0) {
     alert("Выберите файл и хотя бы один объект для обработки");
     return;
@@ -301,6 +307,13 @@ const handleProcess = async () => {
       setProgress(100);
       setFileStatus("✅ Обработка завершена!");
       setCurrentFileId(fileId);
+      
+      // Для анонимных пользователей автоматически сбрасываем состояние через 5 минут
+      if (!isAuthenticated) {
+        setTimeout(() => {
+          resetAnonymousUserState();
+        }, 5 * 60 * 1000); // 5 минут
+      }
     }
   } catch (error: any) {
     console.error("Ошибка загрузки:", error);
@@ -314,17 +327,29 @@ const handleProcess = async () => {
     if (progressInterval) {
       clearInterval(progressInterval);
     }
-    const fileInput = document.getElementById("file-upload") as HTMLInputElement;
-    if (fileInput) fileInput.value = "";
-    setUploadedFile(null);
-    setSelectedObjects(["человек", "автомобиль"]);
-    setBlurType("gaussian");
-    setBlurIntensity([50]);
-    setSearchTerm("");
-    setSelectedCategory("all");
-    setProgress(0);
-    setFileStatus("");
-    setCurrentFileId(null);
+    
+    // Для анонимных пользователей не сбрасываем состояние сразу после загрузки
+    // чтобы они могли скачать обработанный файл
+    if (isAuthenticated) {
+      const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      setUploadedFile(null);
+      setSelectedObjects(["человек", "автомобиль"]);
+      setBlurType("gaussian");
+      setBlurIntensity([50]);
+      setSearchTerm("");
+      setSelectedCategory("all");
+      setProgress(0);
+      setFileStatus("");
+      setCurrentFileId(null);
+    } else {
+      // Для анонимных пользователей сбрасываем только некоторые поля
+      setSelectedObjects(["человек", "автомобиль"]);
+      setBlurType("gaussian");
+      setBlurIntensity([50]);
+      setSearchTerm("");
+      setSelectedCategory("all");
+    }
   }
 };
 
@@ -394,7 +419,26 @@ const pollStatus = async (fileId: string) => {
     }
   };
 
+  const resetAnonymousUserState = () => {
+    if (!isAuthenticated) {
+      const fileInput = document.getElementById("file-upload") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      setUploadedFile(null);
+      setProgress(0);
+      setFileStatus("");
+      setCurrentFileId(null);
+      setIsDownloading(false);
+    }
+  };
+
   const handleDownload = async (fileId: string, type: "original" | "processed" = "processed") => {
+    // Защита от множественных нажатий
+    if (isDownloading) {
+      return;
+    }
+
+    setIsDownloading(true);
+    
     try {
       const res = await fetch(`${API_LINK}/api/files/${fileId}?type=${type}`, {
         method: "GET",
@@ -425,9 +469,18 @@ const pollStatus = async (fileId: string) => {
       a.download = `${type}-${fileId}.${extension}`;
       a.click();
       URL.revokeObjectURL(url);
+      
+      // Для анонимных пользователей сбрасываем состояние после успешного скачивания
+      if (!isAuthenticated) {
+        setTimeout(() => {
+          resetAnonymousUserState();
+        }, 1000); // Небольшая задержка, чтобы пользователь увидел успешное скачивание
+      }
     } catch (error: any) {
       console.error(`Ошибка скачивания (${type}):`, error);
       alert(`Ошибка: ${error.message || "Не удалось скачать файл"}`);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -908,8 +961,8 @@ const pollStatus = async (fileId: string) => {
                 </div>
                 <Button
                   onClick={handleProcess}
-                  disabled={!uploadedFile || processing || selectedObjects.length === 0}
-                  className="w-full font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                  disabled={!uploadedFile || processing || selectedObjects.length === 0 || isDownloading}
+                  className="w-full font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:opacity-50"
                   size="lg"
                 >
                   {processing ? "Обработка..." : "Применить"}
@@ -954,10 +1007,10 @@ const pollStatus = async (fileId: string) => {
                   </div>
                   <Button
                     onClick={() => currentFileId && handleDownload(currentFileId, "processed")}
-                    disabled={!currentFileId || processing}
-                    className="w-full font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                    disabled={!currentFileId || processing || isDownloading}
+                    className="w-full font-manrope bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:opacity-50"
                   >
-                    Скачать результат
+                    {isDownloading ? "Скачивание..." : "Скачать результат"}
                   </Button>
                   {fileStatus && <p className="font-manrope text-sm text-white/60">{fileStatus}</p>}
                 </div>
